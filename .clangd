@@ -1,0 +1,4 @@
+# clangd configuration
+CompileFlags:
+  CompilationDatabase: build
+  Compiler: clang++

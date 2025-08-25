@@ -1,0 +1,28 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+dist/
+
+# Generated files
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Dependencies
+node_modules/
+.direnv/
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -6,22 +6,31 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem
       (system:
-        let pkgs = nixpkgs.legacyPackages.${system}; in
+        let pkgs = import nixpkgs { inherit system; }; in
         {
-          devShells.default = pkgs.mkShell {
+          devShell = pkgs.mkShell {
             name = "cpp-build-toolchain";
-              buildInputs = with pkgs; [
-                gnumake
-                gcc14Stdenv
-                cmake
-                ninja
-                gdb
-                clang-tools
-                boost
-                openmpi
-              ];
 
-            shellHook = '''';
+            nativeBuildInputs = [ pkgs.llvmPackages_21.clang ];
+
+            buildInputs = with pkgs; [
+              cmake
+              ninja
+
+              llvmPackages_21.libcxx
+              llvmPackages_21.openmp
+              llvmPackages_21.clang-tools
+
+              gdb
+              boost
+              # openblas
+            ];
+
+            # this exquisite crutch lets me reference absolute path to clang++
+            # binary in settings.json like this: "--query-driver=${env:PROJECT_CC}/bin/clang++"
+            # this is required since clangd needs absolute paths for these drivers and vscode can't
+            # use command substitution in settings.json
+            PROJECT_CC = "${pkgs.llvmPackages_21.clang}";
           };
         }
       );
