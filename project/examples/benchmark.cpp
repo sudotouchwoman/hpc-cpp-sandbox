@@ -1,9 +1,14 @@
+#include <algorithm>
 #include <boost/test/tools/output_test_stream.hpp>
 #include <boost/test/unit_test.hpp>
 #include <chrono>
+#include <functional>
 #include <iomanip>
 #include <iostream>
+#include <ostream>
 #include <random>
+#include <string>
+#include <vector>
 
 #include <omp.h>
 
@@ -11,8 +16,9 @@
 
 // Helper function to generate random matrix
 std::vector<double> generate_random_matrix(int rows, int cols) {
-  std::random_device rd;
-  std::mt19937 gen(rd());
+  constexpr int seed = 100;
+
+  std::mt19937 gen(seed);
   std::uniform_real_distribution<double> dis(-1.0, 1.0);
 
   std::vector<double> matrix(rows * cols);
@@ -48,26 +54,44 @@ bool verify_result(const std::vector<double>& A, const std::vector<double>& B,
   return true;
 }
 
+struct Implementation {
+  using func_t =
+      std::function<void(int, int, int, const double*, const double*, double*)>;
+
+  std::string name;
+  std::string description;
+  func_t f;
+  bool available;
+
+  Implementation(const std::string& name, const std::string& desc, func_t f,
+                 bool available = true)
+      : name(name), description(desc), f(f), available(available) {}
+};
+
 // Benchmark function
-double benchmark_implementation(
-    const std::string& name,
-    void (*func)(int, int, int, const double*, const double*, double*),
-    const std::vector<double>& A, const std::vector<double>& B,
-    std::vector<double>& C, int M, int N, int K, int iterations = 10) {
+double benchmark_implementation(const Implementation& impl,
+                                const std::vector<double>& A,
+                                const std::vector<double>& B,
+                                std::vector<double>& C, int M, int N, int K,
+                                int iterations = 10) {
+
+  if (!impl.available) {
+    return -1.0;
+  }
 
   // Warm up
   for (int i = 0; i < 3; ++i) {
-    func(M, N, K, A.data(), B.data(), C.data());
+    impl.f(M, N, K, A.data(), B.data(), C.data());
   }
 
-  auto start = std::chrono::high_resolution_clock::now();
+  const auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < iterations; ++i) {
-    func(M, N, K, A.data(), B.data(), C.data());
+    impl.f(M, N, K, A.data(), B.data(), C.data());
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
+  const auto end = std::chrono::high_resolution_clock::now();
+  const auto duration =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
   return duration.count() / static_cast<double>(iterations);
@@ -76,6 +100,22 @@ double benchmark_implementation(
 // Explicit OpenMP cleanup
 void shutdown_test() {
   omp_set_num_threads(1);
+}
+
+std::vector<Implementation> get_implementations() {
+  std::vector<Implementation> impls;
+
+  impls.emplace_back("Naive", "Basic triple-loop", dgemm::impl::naive::dgemm);
+
+  impls.emplace_back("OMP", "OpenMP parallel", dgemm::impl::omp::dgemm);
+
+  impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
+                     dgemm::impl::omp_cache_blocked::dgemm);
+
+  impls.emplace_back("Blocked", "Cache-friendly algorithm",
+                     dgemm::impl::optimized::dgemm);
+
+  return impls;
 }
 
 BOOST_AUTO_TEST_CASE(sanity_check) {
@@ -97,55 +137,45 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
   const auto A = generate_random_matrix(M, K);
   const auto B = generate_random_matrix(K, N);
-
   std::vector<double> C(M * N);
 
-  // Test naive implementation
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::naive::dgemm(M, N, K, A.data(), B.data(), C.data());
-  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
-                      "Correctness test failed for Naive implementation");
+  const auto implementations = get_implementations();
 
-  // Test OpenMP implementation
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
-  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
-                      "Correctness test failed for OpenMP implementation");
+  for (const auto& impl : implementations) {
+    if (!impl.available)
+      continue;
 
-  // Test OpenMP-Blocked implementation
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
-  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
-                      "Correctness test failed for OpenMP implementation");
+    // apply algorithm and verify result
+    std::fill(C.begin(), C.end(), 0.0);
+    impl.f(M, N, K, A.data(), B.data(), C.data());
 
-  // Test optimized implementation
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::optimized::dgemm(M, N, K, A.data(), B.data(), C.data());
-  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
-                      "Correctness test failed for Optimized implementation");
-
-#ifdef HAVE_BLAS
-  // Test BLAS implementation
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::blas::dgemm(M, N, K, A.data(), B.data(), C.data());
-  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
-                      "Correctness test failed for BLAS implementation");
-#endif
+    BOOST_CHECK_MESSAGE(
+        verify_result(A, B, C, M, N, K),
+        "Correctness test failed for: " + impl.name + " implementation");
+  }
 }
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
-  std::vector<int> sizes = {64, 128, 256, 512, 1024};
+  const int num_iterations = 5;
+  const std::vector<int> sizes = {64, 128, 256, 512, 1024};
+  const auto implementations = get_implementations();
 
+  // header
   std::cout << "\n=== DGEMM Performance Benchmark ===\n";
-  std::cout << std::setw(10) << "Size" << std::setw(12) << "Naive"
-            << std::setw(12) << "OpenMP" << std::setw(12) << "Optimized"
-            << std::setw(15) << "OpenMP-Opt";
+  std::cout << std::setw(10) << "Size";
 
-#ifdef HAVE_BLAS
-  std::cout << std::setw(12) << "BLAS";
-#endif
+  for (const auto& impl : implementations) {
+    if (impl.available) {
+      std::cout << std::setw(15) << impl.name;
+    }
+  }
+
   std::cout << std::endl;
 
+  // separator line
+  std::cout << std::string(10 + 15 * implementations.size(), '-') << std::endl;
+
+  // benchmark each size
   for (int size : sizes) {
     const auto A = generate_random_matrix(size, size);
     const auto B = generate_random_matrix(size, size);
@@ -154,48 +184,28 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 
     std::cout << std::setw(10) << size;
 
-    // Benchmark naive
-    std::fill(C.begin(), C.end(), 0.0);
-    const double naive_time = benchmark_implementation(
-        "Naive", dgemm::impl::naive::dgemm, A, B, C, size, size, size, 5);
-    std::cout << std::setw(12) << std::fixed << std::setprecision(2)
-              << naive_time << "μs";
+    // benchmark each implementation
+    for (const auto& impl : implementations) {
+      if (!impl.available)
+        continue;
 
-    // Benchmark OpenMP
-    std::fill(C.begin(), C.end(), 0.0);
-    const double omp_time = benchmark_implementation(
-        "OpenMP", dgemm::impl::omp::dgemm, A, B, C, size, size, size, 5);
-    std::cout << std::setw(12) << std::fixed << std::setprecision(2) << omp_time
-              << "μs";
+      std::fill(C.begin(), C.end(), 0.0);
+      const double time = benchmark_implementation(impl, A, B, C, size, size,
+                                                   size, num_iterations);
 
-    // Benchmark OpenMP
-    std::fill(C.begin(), C.end(), 0.0);
-    const double omp_opt_time = benchmark_implementation(
-        "OpenMP-Opt", dgemm::impl::omp_cache_blocked::dgemm, A, B, C, size, size, size, 5);
-    std::cout << std::setw(12) << std::fixed << std::setprecision(2)
-              << omp_opt_time << "μs";
-
-    // Benchmark optimized
-    std::fill(C.begin(), C.end(), 0.0);
-    const double opt_time =
-        benchmark_implementation("Optimized", dgemm::impl::optimized::dgemm, A,
-                                 B, C, size, size, size, 5);
-    std::cout << std::setw(12) << std::fixed << std::setprecision(2) << opt_time
-              << "μs";
-
-#ifdef HAVE_BLAS
-    // Benchmark BLAS
-    std::fill(C.begin(), C.end(), 0.0);
-    const double blas_time = benchmark_implementation(
-        "BLAS", dgemm::impl::blas::dgemm, A, B, C, size, size, size, 5);
-    std::cout << std::setw(12) << std::fixed << std::setprecision(2)
-              << blas_time << "μs";
-#endif
+      if (time >= 0.0) {
+        std::cout << std::setw(15) << std::fixed << std::setprecision(2) << time
+                  << "μs";
+      } else {
+        std::cout << std::setw(15) << "N/A";
+      }
+    }
 
     std::cout << std::endl;
   }
 
   std::cout << "\nNote: Times are in microseconds per matrix multiplication\n";
+  std::cout << "N/A indicates implementation not available\n";
 
   shutdown_test();
 }

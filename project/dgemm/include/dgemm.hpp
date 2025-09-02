@@ -29,7 +29,7 @@ namespace naive {
      * @param C Input/output matrix C (M x N, column-major)
      * @param ldc Leading dimension of C
      */
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 /**
@@ -42,7 +42,7 @@ namespace omp {
 /**
      * @brief OpenMP parallelized DGEMM implementation
      */
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
@@ -52,7 +52,7 @@ namespace omp_cache_blocked {
 /**
      * @brief OpenMP parallelized DGEMM implementation with blocked iteration
      */
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
@@ -62,7 +62,7 @@ namespace optimized {
 /**
      * @brief Optimized DGEMM implementation with cache blocking
      */
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
@@ -73,7 +73,7 @@ namespace blas {
 /**
      * @brief BLAS DGEMM implementation (if available)
      */
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
@@ -83,7 +83,7 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace impl
 
 // Convenience functions using the default implementation
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);

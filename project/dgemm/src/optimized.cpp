@@ -1,15 +1,14 @@
 #include <algorithm>
-#include <cstring>
 #include "dgemm.hpp"
 
 namespace dgemm::impl::optimized {
 
 // Cache blocking parameters
 // should ba adjusted based on CPU parameters
-constexpr int BLOCK_SIZE = 64;
+constexpr int BLOCK_SIZE = 32;
 
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
-           const double* B, int ldb, double beta, double* C, int ldc) {
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+                const double* B, int ldb, double beta, double* C, int ldc) {
 
   // Scale C by beta first
   if (beta != 1.0) {
@@ -53,7 +52,7 @@ void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   // Simplified interface: C = A * B (assuming leading dimensions are M and K)
-  dgemm(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
+  dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
 }  // namespace dgemm::impl::optimized

@@ -2,7 +2,7 @@
 
 namespace dgemm::impl::naive {
 
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc) {
   // multiplies given M*K and K*N matrices:
   // C[i][j] = sum_k [ A[i][k] * B[k][j] ]
@@ -46,7 +46,7 @@ void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   // Simplified interface: C = A * B (assuming leading dimensions are M and K)
-  dgemm(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
+  dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
 }  // namespace dgemm::impl::naive

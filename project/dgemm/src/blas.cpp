@@ -11,8 +11,8 @@ void dgemm_(const char* transa, const char* transb, const int* m, const int* n,
 
 namespace dgemm::impl::blas {
 
-void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
-           const double* B, int ldb, double beta, double* C, int ldc) {
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+                const double* B, int ldb, double beta, double* C, int ldc) {
 
 #ifdef HAVE_BLAS
   const char transa = 'N';  // No transpose
@@ -22,13 +22,13 @@ void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
          &ldc);
 #else
   // Fallback to naive implementation if BLAS is not available
-  dgemm::impl::naive::dgemm(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  dgemm::impl::naive::dgemm_impl(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 #endif
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   // Simplified interface: C = A * B (assuming leading dimensions are M and K)
-  dgemm(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
+  dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
 }  // namespace dgemm::impl::blas
