@@ -5,7 +5,8 @@
 namespace dgemm::impl::optimized {
 
 // Cache blocking parameters
-constexpr int BLOCK_SIZE = 64;  // Adjust based on your CPU's cache size
+// should ba adjusted based on CPU parameters
+constexpr int BLOCK_SIZE = 64;
 
 void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc) {
@@ -28,18 +29,18 @@ void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
 
   // Cache-blocked matrix multiplication
   for (int jj = 0; jj < N; jj += BLOCK_SIZE) {
-    int j_end = std::min(jj + BLOCK_SIZE, N);
+    const int j_end = std::min(jj + BLOCK_SIZE, N);
 
     for (int kk = 0; kk < K; kk += BLOCK_SIZE) {
-      int k_end = std::min(kk + BLOCK_SIZE, K);
+      const int k_end = std::min(kk + BLOCK_SIZE, K);
 
       for (int ii = 0; ii < M; ii += BLOCK_SIZE) {
-        int i_end = std::min(ii + BLOCK_SIZE, M);
+        const int i_end = std::min(ii + BLOCK_SIZE, M);
 
         // Block multiplication
         for (int j = jj; j < j_end; ++j) {
           for (int k = kk; k < k_end; ++k) {
-            double b_val = B[k + j * ldb];
+            const double b_val = B[k + j * ldb];
             for (int i = ii; i < i_end; ++i) {
               C[i + j * ldc] += alpha * A[i + k * lda] * b_val;
             }

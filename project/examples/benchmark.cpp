@@ -112,6 +112,12 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
   BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
                       "Correctness test failed for OpenMP implementation");
 
+  // Test OpenMP-Blocked implementation
+  std::fill(C.begin(), C.end(), 0.0);
+  dgemm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
+  BOOST_CHECK_MESSAGE(verify_result(A, B, C, M, N, K),
+                      "Correctness test failed for OpenMP implementation");
+
   // Test optimized implementation
   std::fill(C.begin(), C.end(), 0.0);
   dgemm::impl::optimized::dgemm(M, N, K, A.data(), B.data(), C.data());
@@ -132,7 +138,9 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 
   std::cout << "\n=== DGEMM Performance Benchmark ===\n";
   std::cout << std::setw(10) << "Size" << std::setw(12) << "Naive"
-            << std::setw(12) << "OpenMP" << std::setw(12) << "Optimized";
+            << std::setw(12) << "OpenMP" << std::setw(12) << "Optimized"
+            << std::setw(15) << "OpenMP-Opt";
+
 #ifdef HAVE_BLAS
   std::cout << std::setw(12) << "BLAS";
 #endif
@@ -148,21 +156,28 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 
     // Benchmark naive
     std::fill(C.begin(), C.end(), 0.0);
-    double naive_time = benchmark_implementation(
+    const double naive_time = benchmark_implementation(
         "Naive", dgemm::impl::naive::dgemm, A, B, C, size, size, size, 5);
     std::cout << std::setw(12) << std::fixed << std::setprecision(2)
               << naive_time << "μs";
 
     // Benchmark OpenMP
     std::fill(C.begin(), C.end(), 0.0);
-    double omp_time = benchmark_implementation(
+    const double omp_time = benchmark_implementation(
         "OpenMP", dgemm::impl::omp::dgemm, A, B, C, size, size, size, 5);
     std::cout << std::setw(12) << std::fixed << std::setprecision(2) << omp_time
               << "μs";
 
+    // Benchmark OpenMP
+    std::fill(C.begin(), C.end(), 0.0);
+    const double omp_opt_time = benchmark_implementation(
+        "OpenMP-Opt", dgemm::impl::omp_cache_blocked::dgemm, A, B, C, size, size, size, 5);
+    std::cout << std::setw(12) << std::fixed << std::setprecision(2)
+              << omp_opt_time << "μs";
+
     // Benchmark optimized
     std::fill(C.begin(), C.end(), 0.0);
-    double opt_time =
+    const double opt_time =
         benchmark_implementation("Optimized", dgemm::impl::optimized::dgemm, A,
                                  B, C, size, size, size, 5);
     std::cout << std::setw(12) << std::fixed << std::setprecision(2) << opt_time
@@ -171,7 +186,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 #ifdef HAVE_BLAS
     // Benchmark BLAS
     std::fill(C.begin(), C.end(), 0.0);
-    double blas_time = benchmark_implementation(
+    const double blas_time = benchmark_implementation(
         "BLAS", dgemm::impl::blas::dgemm, A, B, C, size, size, size, 5);
     std::cout << std::setw(12) << std::fixed << std::setprecision(2)
               << blas_time << "μs";

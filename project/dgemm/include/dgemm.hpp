@@ -48,6 +48,16 @@ void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace omp
 
+namespace omp_cache_blocked {
+/**
+     * @brief OpenMP parallelized DGEMM implementation with blocked iteration
+     */
+void dgemm(int M, int N, int K, double alpha, const double* A, int lda,
+           const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace omp_cache_blocked
+
 namespace optimized {
 /**
      * @brief Optimized DGEMM implementation with cache blocking

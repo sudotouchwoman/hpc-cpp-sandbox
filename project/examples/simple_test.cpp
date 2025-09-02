@@ -34,6 +34,10 @@ int main() {
   std::fill(C.begin(), C.end(), 0.0);
   dgemm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
 
+  std::cout << "Testing OpenMP implementation with blocking..." << std::endl;
+  std::fill(C.begin(), C.end(), 0.0);
+  dgemm::impl::omp_cache_blocked::dgemm(M, N, K, A.data(), B.data(), C.data());
+
   std::cout << "Testing optimized implementation..." << std::endl;
   std::fill(C.begin(), C.end(), 0.0);
   dgemm::impl::optimized::dgemm(M, N, K, A.data(), B.data(), C.data());
