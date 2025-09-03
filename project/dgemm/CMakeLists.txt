@@ -8,6 +8,10 @@ target_sources(dgemm PRIVATE
     src/naive.cpp
     src/omp.cpp
     src/optimized.cpp
+    src/loop_reorder.cpp
+    src/vectorized.cpp
+    src/unrolled.cpp
+    src/advanced.cpp
     src/blas.cpp
     src/dgemm.cpp
 )

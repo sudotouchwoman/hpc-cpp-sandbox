@@ -61,11 +61,11 @@ struct Implementation {
   std::string name;
   std::string description;
   func_t f;
-  bool available;
+  bool is_available;
 
   Implementation(const std::string& name, const std::string& desc, func_t f,
                  bool available = true)
-      : name(name), description(desc), f(f), available(available) {}
+      : name(name), description(desc), f(f), is_available(available) {}
 };
 
 // Benchmark function
@@ -75,7 +75,7 @@ double benchmark_implementation(const Implementation& impl,
                                 std::vector<double>& C, int M, int N, int K,
                                 int iterations = 10) {
 
-  if (!impl.available) {
+  if (!impl.is_available) {
     return -1.0;
   }
 
@@ -97,6 +97,17 @@ double benchmark_implementation(const Implementation& impl,
   return duration.count() / static_cast<double>(iterations);
 }
 
+// FLOP/s calculation helper
+double calculate_flops(int M, int N, int K) {
+  return 2.0 * static_cast<double>(M) * static_cast<double>(N) *
+         static_cast<double>(K);
+}
+
+double calculate_gflops(double flops, double time_us) {
+  // flops / (time_us * 1e-6) / 1e9 = flops / (time_us * 1e3)
+  return flops / (time_us * 1e3);  // Convert to GFLOP/s
+}
+
 // Explicit OpenMP cleanup
 void shutdown_test() {
   omp_set_num_threads(1);
@@ -106,14 +117,39 @@ std::vector<Implementation> get_implementations() {
   std::vector<Implementation> impls;
 
   impls.emplace_back("Naive", "Basic triple-loop", dgemm::impl::naive::dgemm);
-
   impls.emplace_back("OMP", "OpenMP parallel", dgemm::impl::omp::dgemm);
-
   impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
                      dgemm::impl::omp_cache_blocked::dgemm);
-
-  impls.emplace_back("Blocked", "Cache-friendly algorithm",
+  impls.emplace_back("Optimized", "Cache-friendly algorithm",
                      dgemm::impl::optimized::dgemm);
+
+  // New loop order implementations
+  impls.emplace_back("Loop-IJK", "i,j,k order",
+                     dgemm::impl::loop_reorder::dgemm_ijk);
+
+  // inefficient
+  // impls.emplace_back("Loop-IKJ", "i,k,j order",
+  //                    dgemm::impl::loop_reorder::dgemm_ikj);
+  // impls.emplace_back("Loop-JIK", "j,i,k order",
+  //                    dgemm::impl::loop_reorder::dgemm_jik);
+
+  impls.emplace_back("Loop-JKI", "j,k,i order",
+                     dgemm::impl::loop_reorder::dgemm_jki);
+
+  // inefficient
+  // impls.emplace_back("Loop-KIJ", "k,i,j order",
+  //                    dgemm::impl::loop_reorder::dgemm_kij);
+
+  impls.emplace_back("Loop-KJI", "k,j,i order",
+                     dgemm::impl::loop_reorder::dgemm_kji);
+
+  // Advanced implementations
+  impls.emplace_back("Vectorized", "SIMD vectorized",
+                     dgemm::impl::vectorized::dgemm);
+  impls.emplace_back("Unrolled", "Loop unrolling + prefetch",
+                     dgemm::impl::unrolled::dgemm);
+  impls.emplace_back("Advanced", "Multi-level blocking",
+                     dgemm::impl::advanced::dgemm);
 
   return impls;
 }
@@ -142,7 +178,7 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
   const auto implementations = get_implementations();
 
   for (const auto& impl : implementations) {
-    if (!impl.available)
+    if (!impl.is_available)
       continue;
 
     // apply algorithm and verify result
@@ -157,7 +193,7 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
   const int num_iterations = 5;
-  const std::vector<int> sizes = {64, 128, 256, 512, 1024};
+  const std::vector<int> sizes = {32, 64, 128, 256, 512};
   const auto implementations = get_implementations();
 
   // header
@@ -165,20 +201,21 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
   std::cout << std::setw(10) << "Size";
 
   for (const auto& impl : implementations) {
-    if (impl.available) {
-      std::cout << std::setw(15) << impl.name;
+    if (impl.is_available) {
+      std::cout << " |" << std::setw(22) << impl.name;
     }
   }
 
   std::cout << std::endl;
 
   // separator line
-  std::cout << std::string(10 + 15 * implementations.size(), '-') << std::endl;
+  std::cout << std::string(10 + 24 * implementations.size(), '-') << std::endl;
 
   // benchmark each size
   for (int size : sizes) {
     const auto A = generate_random_matrix(size, size);
     const auto B = generate_random_matrix(size, size);
+    const double flops = calculate_flops(size, size, size);
 
     std::vector<double> C(size * size);
 
@@ -186,7 +223,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 
     // benchmark each implementation
     for (const auto& impl : implementations) {
-      if (!impl.available)
+      if (!impl.is_available)
         continue;
 
       std::fill(C.begin(), C.end(), 0.0);
@@ -194,18 +231,23 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
                                                    size, num_iterations);
 
       if (time >= 0.0) {
-        std::cout << std::setw(15) << std::fixed << std::setprecision(2) << time
-                  << "μs";
+        const double gflops = calculate_gflops(flops, time);
+
+        std::cout << " |" << std::setw(12) << std::fixed << std::setprecision(3)
+                  << time << " |" << std::setw(8) << std::fixed
+                  << std::setprecision(2) << gflops;
       } else {
-        std::cout << std::setw(15) << "N/A";
+        std::cout << std::setw(12) << "N/A" << std::setw(12) << "N/A";
       }
     }
 
     std::cout << std::endl;
   }
 
-  std::cout << "\nNote: Times are in microseconds per matrix multiplication\n";
-  std::cout << "N/A indicates implementation not available\n";
+  std::cout << "\nNote: Time values are in microseconds (lower is better)\n";
+  std::cout << "GFlops values are in GFLOP/s (higher is better)\n";
+  std::cout << "Theoretical peak FLOP/s depends on your CPU (e.g., AVX-512: "
+               "~1-2 TFLOP/s)\n";
 
   shutdown_test();
 }

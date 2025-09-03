@@ -11,21 +11,9 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
   // matrices (A, B, C) are expected to be in column-major format:
   // thus for a M*N matrix A: A_{y,x} -> A[y + x*M]
 
-  // Scale C by beta first
-  if (beta != 1.0) {
-    for (int j = 0; j < N; ++j) {
-      for (int i = 0; i < M; ++i) {
-        C[i + j * ldc] *= beta;
-      }
-    }
-  } else if (beta == 0.0) {
-    // Zero out C
-    for (int j = 0; j < N; ++j) {
-      for (int i = 0; i < M; ++i) {
-        C[i + j * ldc] = 0.0;
-      }
-    }
-  }
+  // Scale C by beta first or zero-out
+  dgemm::init_target_matrix(M, N, beta, C, ldc);
+
 
   // Perform matrix multiplication: C += alpha * A * B
   for (int i = 0; i < M; ++i) {

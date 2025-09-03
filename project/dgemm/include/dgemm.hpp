@@ -68,6 +68,89 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace optimized
 
+namespace loop_reorder {
+namespace ijk_order {
+/**
+     * @brief i,j,k order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+namespace ikj_order {
+/**
+     * @brief i,k,j order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+namespace jik_order {
+/**
+     * @brief j,i,k order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+namespace jki_order {
+/**
+     * @brief j,k,i order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+namespace kij_order {
+/**
+     * @brief k,i,j order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+namespace kji_order {
+/**
+     * @brief k,j,i order DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+}
+
+// Simplified interfaces
+void dgemm_ijk(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_ikj(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_jik(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_jki(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_kij(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_kji(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace loop_reorder
+
+namespace vectorized {
+/**
+     * @brief SIMD vectorized DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace vectorized
+
+namespace unrolled {
+/**
+     * @brief Loop unrolling + prefetch DGEMM implementation
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace unrolled
+
+namespace advanced {
+/**
+     * @brief Multi-level blocking with register-level optimizations
+     */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+               const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace advanced
+
 #ifdef HAVE_BLAS
 namespace blas {
 /**
@@ -81,6 +164,9 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 #endif
 
 }  // namespace impl
+
+// Convenience function to init C matrix as the first step
+void init_target_matrix(int M, int N, double beta, double* C, int ldc);
 
 // Convenience functions using the default implementation
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,

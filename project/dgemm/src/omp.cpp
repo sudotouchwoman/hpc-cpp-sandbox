@@ -4,6 +4,21 @@
 #include <omp.h>
 #endif
 
+// Vector instruction support
+#ifdef __AVX2__
+#include <immintrin.h>
+using vec_t = __m256d;  // 4 doubles per vector
+constexpr int VECTOR_SIZE = 4;
+#elif defined(__SSE2__)
+#include <emmintrin.h>
+using vec_t = __m128d;  // 2 doubles per vector
+constexpr int VECTOR_SIZE = 2;
+#else
+// Fallback to scalar
+using vec_t = double;
+constexpr int VECTOR_SIZE = 1;
+#endif
+
 namespace dgemm::impl::omp {
 
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,

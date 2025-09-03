@@ -21,7 +21,7 @@ find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
 # Set compiler flags for optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=x86-64-v4 -mfma -ffp-contract=fast -fno-math-errno -fno-trapping-math -fopenmp-simd")
 endif()
 
 # Set compiler flags for debug
