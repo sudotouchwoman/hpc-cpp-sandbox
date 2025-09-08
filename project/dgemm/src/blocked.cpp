@@ -50,9 +50,9 @@ constexpr int VECTOR_ALIGN = 8;
 namespace mm::impl::blocked {
 
 // Optimized blocking parameters - keep what works from JKI
-constexpr int L1_BLOCK_K = 64;   // Large K-block like vectorized
+constexpr int L1_BLOCK_K = 32;   // Moderate K-block for innermost loop
 constexpr int L1_BLOCK_I = 64;   // I-block for vectorization
-constexpr int L1_BLOCK_J = 128;  // J-block for register reuse
+constexpr int L1_BLOCK_J = 128;  // Large J-block for outermost loop
 
 // micro-kernel using JIK pattern to reduce stores to C
 inline void micro_kernel(double alpha, const double* __restrict__ A, int lda,

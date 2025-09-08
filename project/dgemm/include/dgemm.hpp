@@ -13,6 +13,9 @@ namespace mm {
 
 namespace impl {
 
+// a helper macro to access matrix value at specified index
+#define INDEX_AT(X, ldx, i, j) (X[(j) * (ldx) + (i)])
+
 namespace naive {
 /**
      * @brief Naive DGEMM implementation

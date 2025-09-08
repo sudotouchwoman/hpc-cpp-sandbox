@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(sanity_check) {
 }
 
 BOOST_AUTO_TEST_CASE(correctness_test) {
-  constexpr int M = 128, N = 32, K = 64;
+  constexpr int M = 100, N = 50, K = 77;
 
   const auto A = generate_random_matrix(M, K);
   const auto B = generate_random_matrix(K, N);
@@ -189,7 +189,7 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
   const int num_iterations = 10;
-  const std::vector<int> sizes = {32, 64, 128, 256, 512};
+  const std::vector<int> sizes = {32, 64, 128, 256, 382, 400, 512};
   const auto implementations = get_implementations();
 
   // header
