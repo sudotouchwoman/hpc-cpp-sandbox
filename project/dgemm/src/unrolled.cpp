@@ -3,59 +3,67 @@
 
 namespace mm::impl::unrolled {
 
-constexpr int BLOCK_SIZE = 64;
-constexpr int UNROLL_FACTOR = 4;
+// Optimized blocking sizes based on cache hierarchy
+constexpr int L1_BLOCK_K = 64;    // Large k-block to amortize memory access
+constexpr int L1_BLOCK_I = 64;    // Moderate i-block for L1 cache
+constexpr int L1_BLOCK_J = 256;   // Smaller j-block for register reuse
+constexpr int UNROLL_FACTOR = 8;  // Increased unroll factor
 
-void dgemm_impl(int M, int N, int K, double alpha,
-                const double* __restrict__ A, int lda,
-                const double* __restrict__ B, int ldb,
-                double beta, double* __restrict__ C, int ldc) {
+// Highly optimized micro-kernel with loop unrolling
+inline void micro_kernel_unrolled(double alpha, const double* __restrict__ A,
+                                  int lda, const double* __restrict__ B,
+                                  int ldb, double* __restrict__ C, int ldc,
+                                  int i_start, int i_end, int j, int k_start,
+                                  int k_end) {
+
+  // JKI order for optimal cache performance
+  for (int k = k_start; k < k_end; ++k) {
+    const double b_val = alpha * B[k + j * ldb];
+    int i = i_start;
+
+    // Unroll inner loop by 8 for better ILP
+    for (; i + UNROLL_FACTOR <= i_end; i += UNROLL_FACTOR) {
+      const double* a_ptr = &A[i + k * lda];
+      double* c_ptr = &C[i + j * ldc];
+
+      // Manual unrolling with pointer arithmetic for better performance
+      c_ptr[0] += a_ptr[0] * b_val;
+      c_ptr[1] += a_ptr[1] * b_val;
+      c_ptr[2] += a_ptr[2] * b_val;
+      c_ptr[3] += a_ptr[3] * b_val;
+      c_ptr[4] += a_ptr[4] * b_val;
+      c_ptr[5] += a_ptr[5] * b_val;
+      c_ptr[6] += a_ptr[6] * b_val;
+      c_ptr[7] += a_ptr[7] * b_val;
+    }
+
+    // Handle remainder
+    for (; i < i_end; ++i) {
+      C[i + j * ldc] += A[i + k * lda] * b_val;
+    }
+  }
+}
+
+void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
+                int lda, const double* __restrict__ B, int ldb, double beta,
+                double* __restrict__ C, int ldc) {
 
   mm::init_target_matrix(M, N, beta, C, ldc);
 
-  // J-outer blocking; micro-kernel accumulates over k, stores once
-  for (int jj = 0; jj < N; jj += BLOCK_SIZE) {
-    const int j_end = std::min(jj + BLOCK_SIZE, N);
+  // Multi-level blocking with JKI order for optimal cache utilization
+  for (int jj = 0; jj < N; jj += L1_BLOCK_J) {
+    const int j_end = std::min(jj + L1_BLOCK_J, N);
 
-    for (int kk = 0; kk < K; kk += BLOCK_SIZE) {
-      const int k_end = std::min(kk + BLOCK_SIZE, K);
+    for (int kk = 0; kk < K; kk += L1_BLOCK_K) {
+      const int k_end = std::min(kk + L1_BLOCK_K, K);
 
-      for (int ii = 0; ii < M; ii += BLOCK_SIZE) {
-        const int i_end = std::min(ii + BLOCK_SIZE, M);
+      for (int ii = 0; ii < M; ii += L1_BLOCK_I) {
+        const int i_end = std::min(ii + L1_BLOCK_I, M);
 
+        // Process each j in the current block
         for (int j = jj; j < j_end; ++j) {
-          int i = ii;
-
-          // Unrolled by 4 across i
-          for (; i + UNROLL_FACTOR <= i_end; i += UNROLL_FACTOR) {
-            double c0 = C[i + j * ldc];
-            double c1 = C[i + 1 + j * ldc];
-            double c2 = C[i + 2 + j * ldc];
-            double c3 = C[i + 3 + j * ldc];
-
-            for (int k = kk; k < k_end; ++k) {
-              const double b = alpha * B[k + j * ldb];
-              const int aoff = k * lda + i;
-              c0 += A[aoff + 0] * b;
-              c1 += A[aoff + 1] * b;
-              c2 += A[aoff + 2] * b;
-              c3 += A[aoff + 3] * b;
-            }
-
-            C[i + j * ldc] = c0;
-            C[i + 1 + j * ldc] = c1;
-            C[i + 2 + j * ldc] = c2;
-            C[i + 3 + j * ldc] = c3;
-          }
-
-          // Remainder
-          for (; i < i_end; ++i) {
-            double c = C[i + j * ldc];
-            for (int k = kk; k < k_end; ++k) {
-              c += A[i + k * lda] * (alpha * B[k + j * ldb]);
-            }
-            C[i + j * ldc] = c;
-          }
+          micro_kernel_unrolled(alpha, A, lda, B, ldb, C, ldc, ii, i_end, j, kk,
+                                k_end);
         }
       }
     }

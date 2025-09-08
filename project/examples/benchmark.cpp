@@ -142,8 +142,10 @@ std::vector<Implementation> get_implementations() {
                      mm::impl::vectorized::dgemm);
   impls.emplace_back("Unrolled", "Loop unrolling + prefetch",
                      mm::impl::unrolled::dgemm);
-  impls.emplace_back("Advanced", "Multi-level blocking",
+  impls.emplace_back("Blocked", "Micro-Kernel with reduced stores",
                      mm::impl::advanced::dgemm);
+  impls.emplace_back("Packed A", "Micro-kernel, transpose A blocks",
+                     mm::impl::advanced::packed_a::dgemm);
 
   return impls;
 }
@@ -186,8 +188,8 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 }
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
-  const int num_iterations = 1;
-  const std::vector<int> sizes = {32, 64, 128, 256, 512, 1024, 2048};
+  const int num_iterations = 10;
+  const std::vector<int> sizes = {32, 64, 128, 256, 512};
   const auto implementations = get_implementations();
 
   // header
