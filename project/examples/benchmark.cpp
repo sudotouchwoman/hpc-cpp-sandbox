@@ -112,14 +112,13 @@ std::vector<Implementation> get_implementations() {
 
   impls.emplace_back("BLAS", "Open BLAS", mm::impl::blas::dgemm);
 
-  impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
+  // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
   // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
   // impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
   //                    mm::impl::omp_cache_blocked::dgemm);
 
-  // New loop order implementations
-  impls.emplace_back("Loop-IJK", "i,j,k order",
-                     mm::impl::loop_reorder::dgemm_ijk);
+  // impls.emplace_back("Loop-IJK", "i,j,k order",
+                    //  mm::impl::loop_reorder::dgemm_ijk);
 
   // inefficient
   // impls.emplace_back("Loop-IKJ", "i,k,j order",
@@ -140,8 +139,8 @@ std::vector<Implementation> get_implementations() {
   // Advanced implementations
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);
-  impls.emplace_back("Unrolled", "Loop unrolling + prefetch",
-                     mm::impl::unrolled::dgemm);
+  impls.emplace_back("Tiled", "Tiling + Register optimization",
+                     mm::impl::tiled::dgemm);
   impls.emplace_back("Blocked", "Micro-Kernel with reduced stores",
                      mm::impl::blocked::dgemm);
   impls.emplace_back("Packed A", "Micro-kernel, transpose A blocks",
@@ -165,7 +164,7 @@ BOOST_AUTO_TEST_CASE(sanity_check) {
 }
 
 BOOST_AUTO_TEST_CASE(correctness_test) {
-  constexpr int M = 100, N = 50, K = 77;
+  constexpr int M = 211, N = 103, K = 99;
 
   const auto A = generate_random_matrix(M, K);
   const auto B = generate_random_matrix(K, N);
@@ -189,7 +188,7 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
   const int num_iterations = 10;
-  const std::vector<int> sizes = {32, 64, 128, 256, 382, 400, 512};
+  const std::vector<int> sizes = {32, 64, 128, 256, 382, 400, 512, 1024};
   const auto implementations = get_implementations();
 
   // header

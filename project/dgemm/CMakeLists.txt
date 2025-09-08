@@ -9,7 +9,7 @@ target_sources(dgemm PRIVATE
     src/omp.cpp
     src/loop_reorder.cpp
     src/vectorized.cpp
-    src/unrolled.cpp
+    src/tiled.cpp
     src/blocked.cpp
     src/blas.cpp
     src/dgemm.cpp

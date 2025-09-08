@@ -130,15 +130,15 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace vectorized
 
-namespace unrolled {
+namespace tiled {
 /**
-     * @brief Loop unrolling + prefetch DGEMM implementation
+     * @brief Tiling + register optimized DGEMM implementation
      */
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
-}  // namespace unrolled
+}  // namespace tiled
 
 namespace blocked {
 /**
