@@ -3,7 +3,7 @@
 namespace mm::impl::naive {
 
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-           const double* B, int ldb, double beta, double* C, int ldc) {
+                const double* B, int ldb, double beta, double* C, int ldc) {
   // multiplies given M*K and K*N matrices:
   // C[i][j] = sum_k [ A[i][k] * B[k][j] ]
 
@@ -13,7 +13,6 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 
   // Scale C by beta first or zero-out
   mm::init_target_matrix(M, N, beta, C, ldc);
-
 
   // Perform matrix multiplication: C += alpha * A * B
   for (int i = 0; i < M; ++i) {

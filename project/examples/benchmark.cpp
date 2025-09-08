@@ -143,12 +143,12 @@ std::vector<Implementation> get_implementations() {
                      mm::impl::tiled::dgemm);
   impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
                      mm::impl::tiled::packed_a::dgemm);
-  impls.emplace_back("Tiled + Pack A/B", "Tiling + A Transpose + B",
+  impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
                      mm::impl::tiled::packed::dgemm);
 
-  impls.emplace_back("Blocked", "Micro-Kernel with reduced stores",
+  impls.emplace_back("SIMD + Tiled", "Micro-Kernel with reduced stores",
                      mm::impl::blocked::dgemm);
-  impls.emplace_back("Packed A", "Micro-kernel, transpose A blocks",
+  impls.emplace_back("SIMD + Tiled + Pack A", "Micro-kernel, A Transpose",
                      mm::impl::blocked::packed_a::dgemm);
 
   return impls;

@@ -384,29 +384,44 @@ namespace packed {
 static inline void micro_kernel_packed_1x(double alpha,
                                           const double* __restrict__ Ap, int Mb,
                                           int Kb, const double* __restrict__ Bp,
-                                          double* __restrict__ C, int ldc, int ii,
-                                          int i_end, int j) {
+                                          double* __restrict__ C, int ldc,
+                                          int ii, int i_end, int j) {
   double* __restrict__ c_col = C + (j * ldc) + ii;
 
   int i = 0;
   for (; i + 8 <= Mb; i += 8) {
-    double c0 = c_col[i + 0], c1 = c_col[i + 1], c2 = c_col[i + 2], c3 = c_col[i + 3];
-    double c4 = c_col[i + 4], c5 = c_col[i + 5], c6 = c_col[i + 6], c7 = c_col[i + 7];
+    double c0 = c_col[i + 0], c1 = c_col[i + 1], c2 = c_col[i + 2],
+           c3 = c_col[i + 3];
+    double c4 = c_col[i + 4], c5 = c_col[i + 5], c6 = c_col[i + 6],
+           c7 = c_col[i + 7];
 
     for (int k = 0; k < Kb; ++k) {
       const double b = alpha * Bp[k];
       const double* __restrict__ a = Ap + k * Mb + i;
-      c0 += a[0] * b; c1 += a[1] * b; c2 += a[2] * b; c3 += a[3] * b;
-      c4 += a[4] * b; c5 += a[5] * b; c6 += a[6] * b; c7 += a[7] * b;
+      c0 += a[0] * b;
+      c1 += a[1] * b;
+      c2 += a[2] * b;
+      c3 += a[3] * b;
+      c4 += a[4] * b;
+      c5 += a[5] * b;
+      c6 += a[6] * b;
+      c7 += a[7] * b;
     }
 
-    c_col[i + 0] = c0; c_col[i + 1] = c1; c_col[i + 2] = c2; c_col[i + 3] = c3;
-    c_col[i + 4] = c4; c_col[i + 5] = c5; c_col[i + 6] = c6; c_col[i + 7] = c7;
+    c_col[i + 0] = c0;
+    c_col[i + 1] = c1;
+    c_col[i + 2] = c2;
+    c_col[i + 3] = c3;
+    c_col[i + 4] = c4;
+    c_col[i + 5] = c5;
+    c_col[i + 6] = c6;
+    c_col[i + 7] = c7;
   }
 
   for (; i < Mb; ++i) {
     double c = c_col[i];
-    for (int k = 0; k < Kb; ++k) c += alpha * Ap[k * Mb + i] * Bp[k];
+    for (int k = 0; k < Kb; ++k)
+      c += alpha * Ap[k * Mb + i] * Bp[k];
     c_col[i] = c;
   }
 }
@@ -422,11 +437,15 @@ static inline void micro_kernel_packed_8x2(
 
   int i = 0;
   for (; i + 8 <= Mb; i += 8) {
-    double c0r0 = c0[i + 0], c0r1 = c0[i + 1], c0r2 = c0[i + 2], c0r3 = c0[i + 3];
-    double c0r4 = c0[i + 4], c0r5 = c0[i + 5], c0r6 = c0[i + 6], c0r7 = c0[i + 7];
+    double c0r0 = c0[i + 0], c0r1 = c0[i + 1], c0r2 = c0[i + 2],
+           c0r3 = c0[i + 3];
+    double c0r4 = c0[i + 4], c0r5 = c0[i + 5], c0r6 = c0[i + 6],
+           c0r7 = c0[i + 7];
 
-    double c1r0 = c1[i + 0], c1r1 = c1[i + 1], c1r2 = c1[i + 2], c1r3 = c1[i + 3];
-    double c1r4 = c1[i + 4], c1r5 = c1[i + 5], c1r6 = c1[i + 6], c1r7 = c1[i + 7];
+    double c1r0 = c1[i + 0], c1r1 = c1[i + 1], c1r2 = c1[i + 2],
+           c1r3 = c1[i + 3];
+    double c1r4 = c1[i + 4], c1r5 = c1[i + 5], c1r6 = c1[i + 6],
+           c1r7 = c1[i + 7];
 
     for (int k = 0; k < Kb; ++k) {
       const double b0 = alpha * Bp0[k];
@@ -436,18 +455,42 @@ static inline void micro_kernel_packed_8x2(
       const double a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3];
       const double a4 = a[4], a5 = a[5], a6 = a[6], a7 = a[7];
 
-      c0r0 += a0 * b0; c0r1 += a1 * b0; c0r2 += a2 * b0; c0r3 += a3 * b0;
-      c0r4 += a4 * b0; c0r5 += a5 * b0; c0r6 += a6 * b0; c0r7 += a7 * b0;
+      c0r0 += a0 * b0;
+      c0r1 += a1 * b0;
+      c0r2 += a2 * b0;
+      c0r3 += a3 * b0;
+      c0r4 += a4 * b0;
+      c0r5 += a5 * b0;
+      c0r6 += a6 * b0;
+      c0r7 += a7 * b0;
 
-      c1r0 += a0 * b1; c1r1 += a1 * b1; c1r2 += a2 * b1; c1r3 += a3 * b1;
-      c1r4 += a4 * b1; c1r5 += a5 * b1; c1r6 += a6 * b1; c1r7 += a7 * b1;
+      c1r0 += a0 * b1;
+      c1r1 += a1 * b1;
+      c1r2 += a2 * b1;
+      c1r3 += a3 * b1;
+      c1r4 += a4 * b1;
+      c1r5 += a5 * b1;
+      c1r6 += a6 * b1;
+      c1r7 += a7 * b1;
     }
 
-    c0[i + 0] = c0r0; c0[i + 1] = c0r1; c0[i + 2] = c0r2; c0[i + 3] = c0r3;
-    c0[i + 4] = c0r4; c0[i + 5] = c0r5; c0[i + 6] = c0r6; c0[i + 7] = c0r7;
+    c0[i + 0] = c0r0;
+    c0[i + 1] = c0r1;
+    c0[i + 2] = c0r2;
+    c0[i + 3] = c0r3;
+    c0[i + 4] = c0r4;
+    c0[i + 5] = c0r5;
+    c0[i + 6] = c0r6;
+    c0[i + 7] = c0r7;
 
-    c1[i + 0] = c1r0; c1[i + 1] = c1r1; c1[i + 2] = c1r2; c1[i + 3] = c1r3;
-    c1[i + 4] = c1r4; c1[i + 5] = c1r5; c1[i + 6] = c1r6; c1[i + 7] = c1r7;
+    c1[i + 0] = c1r0;
+    c1[i + 1] = c1r1;
+    c1[i + 2] = c1r2;
+    c1[i + 3] = c1r3;
+    c1[i + 4] = c1r4;
+    c1[i + 5] = c1r5;
+    c1[i + 6] = c1r6;
+    c1[i + 7] = c1r7;
   }
 
   for (; i < Mb; ++i) {
@@ -457,7 +500,8 @@ static inline void micro_kernel_packed_8x2(
       c0v += alpha * a * Bp0[k];
       c1v += alpha * a * Bp1[k];
     }
-    c0[i] = c0v; c1[i] = c1v;
+    c0[i] = c0v;
+    c1[i] = c1v;
   }
 }
 
@@ -475,17 +519,25 @@ static inline void micro_kernel_packed_8x4(
 
   int i = 0;
   for (; i + 8 <= Mb; i += 8) {
-    double c0r0 = c0[i + 0], c0r1 = c0[i + 1], c0r2 = c0[i + 2], c0r3 = c0[i + 3];
-    double c0r4 = c0[i + 4], c0r5 = c0[i + 5], c0r6 = c0[i + 6], c0r7 = c0[i + 7];
+    double c0r0 = c0[i + 0], c0r1 = c0[i + 1], c0r2 = c0[i + 2],
+           c0r3 = c0[i + 3];
+    double c0r4 = c0[i + 4], c0r5 = c0[i + 5], c0r6 = c0[i + 6],
+           c0r7 = c0[i + 7];
 
-    double c1r0 = c1[i + 0], c1r1 = c1[i + 1], c1r2 = c1[i + 2], c1r3 = c1[i + 3];
-    double c1r4 = c1[i + 4], c1r5 = c1[i + 5], c1r6 = c1[i + 6], c1r7 = c1[i + 7];
+    double c1r0 = c1[i + 0], c1r1 = c1[i + 1], c1r2 = c1[i + 2],
+           c1r3 = c1[i + 3];
+    double c1r4 = c1[i + 4], c1r5 = c1[i + 5], c1r6 = c1[i + 6],
+           c1r7 = c1[i + 7];
 
-    double c2r0 = c2[i + 0], c2r1 = c2[i + 1], c2r2 = c2[i + 2], c2r3 = c2[i + 3];
-    double c2r4 = c2[i + 4], c2r5 = c2[i + 5], c2r6 = c2[i + 6], c2r7 = c2[i + 7];
+    double c2r0 = c2[i + 0], c2r1 = c2[i + 1], c2r2 = c2[i + 2],
+           c2r3 = c2[i + 3];
+    double c2r4 = c2[i + 4], c2r5 = c2[i + 5], c2r6 = c2[i + 6],
+           c2r7 = c2[i + 7];
 
-    double c3r0 = c3[i + 0], c3r1 = c3[i + 1], c3r2 = c3[i + 2], c3r3 = c3[i + 3];
-    double c3r4 = c3[i + 4], c3r5 = c3[i + 5], c3r6 = c3[i + 6], c3r7 = c3[i + 7];
+    double c3r0 = c3[i + 0], c3r1 = c3[i + 1], c3r2 = c3[i + 2],
+           c3r3 = c3[i + 3];
+    double c3r4 = c3[i + 4], c3r5 = c3[i + 5], c3r6 = c3[i + 6],
+           c3r7 = c3[i + 7];
 
     for (int k = 0; k < Kb; ++k) {
       const double b0 = alpha * Bp0[k];
@@ -497,30 +549,78 @@ static inline void micro_kernel_packed_8x4(
       const double a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3];
       const double a4 = a[4], a5 = a[5], a6 = a[6], a7 = a[7];
 
-      c0r0 += a0 * b0; c0r1 += a1 * b0; c0r2 += a2 * b0; c0r3 += a3 * b0;
-      c0r4 += a4 * b0; c0r5 += a5 * b0; c0r6 += a6 * b0; c0r7 += a7 * b0;
+      c0r0 += a0 * b0;
+      c0r1 += a1 * b0;
+      c0r2 += a2 * b0;
+      c0r3 += a3 * b0;
+      c0r4 += a4 * b0;
+      c0r5 += a5 * b0;
+      c0r6 += a6 * b0;
+      c0r7 += a7 * b0;
 
-      c1r0 += a0 * b1; c1r1 += a1 * b1; c1r2 += a2 * b1; c1r3 += a3 * b1;
-      c1r4 += a4 * b1; c1r5 += a5 * b1; c1r6 += a6 * b1; c1r7 += a7 * b1;
+      c1r0 += a0 * b1;
+      c1r1 += a1 * b1;
+      c1r2 += a2 * b1;
+      c1r3 += a3 * b1;
+      c1r4 += a4 * b1;
+      c1r5 += a5 * b1;
+      c1r6 += a6 * b1;
+      c1r7 += a7 * b1;
 
-      c2r0 += a0 * b2; c2r1 += a1 * b2; c2r2 += a2 * b2; c2r3 += a3 * b2;
-      c2r4 += a4 * b2; c2r5 += a5 * b2; c2r6 += a6 * b2; c2r7 += a7 * b2;
+      c2r0 += a0 * b2;
+      c2r1 += a1 * b2;
+      c2r2 += a2 * b2;
+      c2r3 += a3 * b2;
+      c2r4 += a4 * b2;
+      c2r5 += a5 * b2;
+      c2r6 += a6 * b2;
+      c2r7 += a7 * b2;
 
-      c3r0 += a0 * b3; c3r1 += a1 * b3; c3r2 += a2 * b3; c3r3 += a3 * b3;
-      c3r4 += a4 * b3; c3r5 += a5 * b3; c3r6 += a6 * b3; c3r7 += a7 * b3;
+      c3r0 += a0 * b3;
+      c3r1 += a1 * b3;
+      c3r2 += a2 * b3;
+      c3r3 += a3 * b3;
+      c3r4 += a4 * b3;
+      c3r5 += a5 * b3;
+      c3r6 += a6 * b3;
+      c3r7 += a7 * b3;
     }
 
-    c0[i + 0] = c0r0; c0[i + 1] = c0r1; c0[i + 2] = c0r2; c0[i + 3] = c0r3;
-    c0[i + 4] = c0r4; c0[i + 5] = c0r5; c0[i + 6] = c0r6; c0[i + 7] = c0r7;
+    c0[i + 0] = c0r0;
+    c0[i + 1] = c0r1;
+    c0[i + 2] = c0r2;
+    c0[i + 3] = c0r3;
+    c0[i + 4] = c0r4;
+    c0[i + 5] = c0r5;
+    c0[i + 6] = c0r6;
+    c0[i + 7] = c0r7;
 
-    c1[i + 0] = c1r0; c1[i + 1] = c1r1; c1[i + 2] = c1r2; c1[i + 3] = c1r3;
-    c1[i + 4] = c1r4; c1[i + 5] = c1r5; c1[i + 6] = c1r6; c1[i + 7] = c1r7;
+    c1[i + 0] = c1r0;
+    c1[i + 1] = c1r1;
+    c1[i + 2] = c1r2;
+    c1[i + 3] = c1r3;
+    c1[i + 4] = c1r4;
+    c1[i + 5] = c1r5;
+    c1[i + 6] = c1r6;
+    c1[i + 7] = c1r7;
 
-    c2[i + 0] = c2r0; c2[i + 1] = c2r1; c2[i + 2] = c2r2; c2[i + 3] = c2r3;
-    c2[i + 4] = c2r4; c2[i + 5] = c2r5; c2[i + 6] = c2r6; c2[i + 7] = c2r7;
+    c2[i + 0] = c2r0;
+    c2[i + 1] = c2r1;
+    c2[i + 2] = c2r2;
+    c2[i + 3] = c2r3;
+    c2[i + 4] = c2r4;
+    c2[i + 5] = c2r5;
+    c2[i + 6] = c2r6;
+    c2[i + 7] = c2r7;
 
-    c3[i + 0] = c3r0; c3[i + 1] = c3r1; c3[i + 2] = c3r2; c3[i + 3] = c3r3;
-    c3[i + 4] = c3r4; c3[i + 5] = c3r5; c3[i + 6] = c3r6; c3[i + 7] = c3r7;
+    c3[i + 0] = c3r0;
+    c3[i + 1] = c3r1;
+    c3[i + 2] = c3r2;
+    c3[i + 3] = c3r3;
+    c3[i + 4] = c3r4;
+    c3[i + 5] = c3r5;
+    c3[i + 6] = c3r6;
+    c3[i + 7] = c3r7;
   }
 
   for (; i < Mb; ++i) {
@@ -532,7 +632,10 @@ static inline void micro_kernel_packed_8x4(
       v2 += alpha * a * Bp2[k];
       v3 += alpha * a * Bp3[k];
     }
-    c0[i] = v0; c1[i] = v1; c2[i] = v2; c3[i] = v3;
+    c0[i] = v0;
+    c1[i] = v1;
+    c2[i] = v2;
+    c3[i] = v3;
   }
 }
 
@@ -554,6 +657,14 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
   std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
   std::unique_ptr<double[]> B_pack(new double[B_pack_capacity]);
 
+  // buffer for C - reuse across computation, commit to C once per jj, ii block
+  const int I_tiles_total = (M + BLOCK_I_L2 - 1) / BLOCK_I_L2;
+  const size_t C_pack_capacity = static_cast<size_t>(I_tiles_total) *
+                                 static_cast<size_t>(BLOCK_I_L2) *
+                                 static_cast<size_t>(BLOCK_J_L2);
+
+  std::unique_ptr<double[]> C_pack(new double[C_pack_capacity]);
+
   for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
     const int j_end = std::min(jj + BLOCK_J_L2, N);
     const int Jb = j_end - jj;
@@ -572,39 +683,76 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
         // Pack A per (ii, kk), reuse across the J-block
         pack_A_block_transpose(A, lda, A_pack.get(), ii, i_end, kk, k_end);
 
+        // Select C tile for this ii: zero out once at kk == 0
+        double* __restrict__ C_tile =
+            C_pack.get() +
+            static_cast<size_t>(ii / BLOCK_I_L2) * BLOCK_I_L2 * BLOCK_J_L2;
+
+        // zero out at first kk iteration
+        if (kk == 0) {
+          std::memset(C_tile, 0, sizeof(double) * BLOCK_I_L2 * Jb);
+        }
+
         // Consume packed B per column
         int j = jj;
 
         // 4-column blocks
         for (; j + 4 <= j_end; j += 4) {
-          const double* __restrict__ Bp0 = B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
-          const double* __restrict__ Bp1 = B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
-          const double* __restrict__ Bp2 = B_pack.get() + (static_cast<size_t>(j - jj + 2) * Kb);
-          const double* __restrict__ Bp3 = B_pack.get() + (static_cast<size_t>(j - jj + 3) * Kb);
+          const double* __restrict__ Bp0 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
+          const double* __restrict__ Bp1 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
+          const double* __restrict__ Bp2 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 2) * Kb);
+          const double* __restrict__ Bp3 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 3) * Kb);
 
-          micro_kernel_packed_8x4(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, Bp2, Bp3,
-                                  C, ldc, ii, i_end, j);
+          micro_kernel_packed_8x4(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, Bp2,
+                                  Bp3, C_tile, BLOCK_I_L2, 0, Mb, (j - jj));
         }
 
         // 2-column blocks
         for (; j + 2 <= j_end; j += 2) {
-          const double* __restrict__ Bp0 = B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
-          const double* __restrict__ Bp1 = B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
+          const double* __restrict__ Bp0 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
+          const double* __restrict__ Bp1 =
+              B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
 
-          micro_kernel_packed_8x2(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1,
-                                  C, ldc, ii, i_end, j);
+          micro_kernel_packed_8x2(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, C_tile,
+                                  BLOCK_I_L2, 0, Mb, (j - jj));
         }
 
         // Single column tail
         for (; j < j_end; ++j) {
           const double* __restrict__ Bp_col =
               B_pack.get() + (static_cast<size_t>(j - jj) * Kb);
-          micro_kernel_packed_1x(alpha, A_pack.get(), Mb, Kb, Bp_col,
-                                 C, ldc, ii, i_end, j);
+          micro_kernel_packed_1x(alpha, A_pack.get(), Mb, Kb, Bp_col, C_tile,
+                                 BLOCK_I_L2, 0, Mb, (j - jj));
+        }
+      }  // ii
+    }  // kk
+
+    // add extra loop for ii after kk - single store to C from C_tile buffer
+    // for single (jj, ii) block
+    for (int ii = 0; ii < M; ii += BLOCK_I_L2) {
+      const int i_end = std::min(ii + BLOCK_I_L2, M);
+      const int Mb = i_end - ii;
+
+      const double* __restrict__ C_tile =
+          C_pack.get() +
+          static_cast<size_t>(ii / BLOCK_I_L2) * BLOCK_I_L2 * BLOCK_J_L2;
+
+      for (int j = 0; j < Jb; ++j) {
+        double* __restrict__ c_dst = C + (ii + (jj + j) * ldc);
+        const double* __restrict__ c_src =
+            C_tile + static_cast<size_t>(j) * BLOCK_I_L2;
+
+        for (int i = 0; i < Mb; ++i) {
+          c_dst[i] = c_src[i];
         }
       }
-    }
-  }
+    }  // ii commit
+  }  // jj
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {

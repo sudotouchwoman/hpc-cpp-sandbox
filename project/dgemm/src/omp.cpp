@@ -113,7 +113,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
     for (int k = 0; k < K; ++k) {
       // cache B[k, j] value outside innermost loop
       const double b_val = B[k + j * ldb];
-      const double* a_val = A + (k*lda);
+      const double* a_val = A + (k * lda);
 
       for (int i = 0; i < M; ++i) {
         C[i + j * ldc] += alpha * a_val[i] * b_val;
