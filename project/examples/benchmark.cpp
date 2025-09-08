@@ -118,7 +118,7 @@ std::vector<Implementation> get_implementations() {
   //                    mm::impl::omp_cache_blocked::dgemm);
 
   // impls.emplace_back("Loop-IJK", "i,j,k order",
-                    //  mm::impl::loop_reorder::dgemm_ijk);
+  //  mm::impl::loop_reorder::dgemm_ijk);
 
   // inefficient
   // impls.emplace_back("Loop-IKJ", "i,k,j order",
@@ -141,6 +141,11 @@ std::vector<Implementation> get_implementations() {
                      mm::impl::vectorized::dgemm);
   impls.emplace_back("Tiled", "Tiling + Register optimization",
                      mm::impl::tiled::dgemm);
+  impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
+                     mm::impl::tiled::packed_a::dgemm);
+  impls.emplace_back("Tiled + Pack A/B", "Tiling + A Transpose + B",
+                     mm::impl::tiled::packed::dgemm);
+
   impls.emplace_back("Blocked", "Micro-Kernel with reduced stores",
                      mm::impl::blocked::dgemm);
   impls.emplace_back("Packed A", "Micro-kernel, transpose A blocks",
@@ -187,9 +192,11 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 }
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
-  const int num_iterations = 10;
-  const std::vector<int> sizes = {32, 64, 128, 256, 382, 400, 512, 1024};
+  constexpr int num_iterations = 10;
+
   const auto implementations = get_implementations();
+  const std::vector<int> sizes = {32,  64,  128, 256,  382, 400,
+                                  512, 760, 800, 1024, 2048};
 
   // header
   std::cout << "\n=== DGEMM Performance Benchmark ===\n";

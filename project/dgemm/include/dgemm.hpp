@@ -132,18 +132,38 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 
 namespace tiled {
 /**
-     * @brief Tiling + register optimized DGEMM implementation
-     */
+* @brief Tiling + register optimized DGEMM implementation
+*/
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+
+namespace packed {
+/**
+* @brief tiled DGEMM with A-block transpose packing and B block packing (once per block)
+*/
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+                const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace packed
+
+namespace packed_a {
+/**
+* @brief tiled DGEMM with A-block transpose packing (packed once per block)
+*/
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+                const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+}  // namespace packed_a
 }  // namespace tiled
 
 namespace blocked {
 /**
-     * @brief Multi-level blocking with register-level optimizations
-     */
+* @brief Multi-level blocking with register-level optimizations
+*/
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
 
@@ -151,8 +171,8 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 
 namespace packed_a {
 /**
-           * @brief blocked DGEMM with A-block transpose packing (packed once per A-panel and reused across J-block)
-           */
+* @brief blocked DGEMM with A-block transpose packing (packed once per A-panel and reused across J-block)
+*/
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
 
@@ -164,8 +184,8 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 #ifdef HAVE_BLAS
 namespace blas {
 /**
-     * @brief BLAS DGEMM implementation (if available)
-     */
+* @brief BLAS DGEMM implementation (if available)
+*/
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
 
