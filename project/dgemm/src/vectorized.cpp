@@ -46,7 +46,7 @@ constexpr int VECTOR_SIZE = 1;
 #define VEC_SET1(val) (val)
 #endif
 
-namespace dgemm::impl::vectorized {
+namespace mm::impl::vectorized {
 
 constexpr int BLOCK_SIZE = 128;
 
@@ -55,7 +55,7 @@ void dgemm_impl(int M, int N, int K, double alpha,
                 const double* __restrict__ B, int ldb,
                 double beta, double* __restrict__ C, int ldc) {
 
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   // Blocking over j,k,i; micro-kernel uses (j, i-vector, k) so C stays in registers
   for (int jj = 0; jj < N; jj += BLOCK_SIZE) {
@@ -102,4 +102,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::vectorized
+}  // namespace mm::impl::vectorized

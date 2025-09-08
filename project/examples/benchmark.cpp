@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <boost/test/tools/output_test_stream.hpp>
 #include <boost/test/unit_test.hpp>
 #include <chrono>
@@ -79,11 +78,6 @@ double benchmark_implementation(const Implementation& impl,
     return -1.0;
   }
 
-  // Warm up
-  for (int i = 0; i < 3; ++i) {
-    impl.f(M, N, K, A.data(), B.data(), C.data());
-  }
-
   const auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < iterations; ++i) {
@@ -116,40 +110,40 @@ void shutdown_test() {
 std::vector<Implementation> get_implementations() {
   std::vector<Implementation> impls;
 
-  impls.emplace_back("Naive", "Basic triple-loop", dgemm::impl::naive::dgemm);
-  impls.emplace_back("OMP", "OpenMP parallel", dgemm::impl::omp::dgemm);
-  impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
-                     dgemm::impl::omp_cache_blocked::dgemm);
-  impls.emplace_back("Optimized", "Cache-friendly algorithm",
-                     dgemm::impl::optimized::dgemm);
+  impls.emplace_back("BLAS", "Open BLAS", mm::impl::blas::dgemm);
+
+  impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
+  // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
+  // impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
+  //                    mm::impl::omp_cache_blocked::dgemm);
 
   // New loop order implementations
   impls.emplace_back("Loop-IJK", "i,j,k order",
-                     dgemm::impl::loop_reorder::dgemm_ijk);
+                     mm::impl::loop_reorder::dgemm_ijk);
 
   // inefficient
   // impls.emplace_back("Loop-IKJ", "i,k,j order",
-  //                    dgemm::impl::loop_reorder::dgemm_ikj);
+  //                    mm::impl::loop_reorder::dgemm_ikj);
   // impls.emplace_back("Loop-JIK", "j,i,k order",
-  //                    dgemm::impl::loop_reorder::dgemm_jik);
+  //                    mm::impl::loop_reorder::dgemm_jik);
 
   impls.emplace_back("Loop-JKI", "j,k,i order",
-                     dgemm::impl::loop_reorder::dgemm_jki);
+                     mm::impl::loop_reorder::dgemm_jki);
 
   // inefficient
   // impls.emplace_back("Loop-KIJ", "k,i,j order",
-  //                    dgemm::impl::loop_reorder::dgemm_kij);
+  //                    mm::impl::loop_reorder::dgemm_kij);
 
   impls.emplace_back("Loop-KJI", "k,j,i order",
-                     dgemm::impl::loop_reorder::dgemm_kji);
+                     mm::impl::loop_reorder::dgemm_kji);
 
   // Advanced implementations
   impls.emplace_back("Vectorized", "SIMD vectorized",
-                     dgemm::impl::vectorized::dgemm);
+                     mm::impl::vectorized::dgemm);
   impls.emplace_back("Unrolled", "Loop unrolling + prefetch",
-                     dgemm::impl::unrolled::dgemm);
+                     mm::impl::unrolled::dgemm);
   impls.emplace_back("Advanced", "Multi-level blocking",
-                     dgemm::impl::advanced::dgemm);
+                     mm::impl::advanced::dgemm);
 
   return impls;
 }
@@ -162,7 +156,7 @@ BOOST_AUTO_TEST_CASE(sanity_check) {
   std::vector<double> expected = {-18, -20, -15, -33, -37, -27};
 
   // Test naive implementation
-  dgemm::impl::naive::dgemm(M, N, K, A.data(), B.data(), C.data());
+  mm::impl::naive::dgemm(M, N, K, A.data(), B.data(), C.data());
 
   BOOST_CHECK_EQUAL_COLLECTIONS(C.begin(), C.end(), expected.begin(),
                                 expected.end());
@@ -192,8 +186,8 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 }
 
 BOOST_AUTO_TEST_CASE(performance_benchmark) {
-  const int num_iterations = 5;
-  const std::vector<int> sizes = {32, 64, 128, 256, 512};
+  const int num_iterations = 1;
+  const std::vector<int> sizes = {32, 64, 128, 256, 512, 1024, 2048};
   const auto implementations = get_implementations();
 
   // header

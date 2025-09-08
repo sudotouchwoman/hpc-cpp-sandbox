@@ -1,6 +1,6 @@
 #include "dgemm.hpp"
 
-namespace dgemm::impl::loop_reorder {
+namespace mm::impl::loop_reorder {
 
 // Different loop orders optimized for column-major matrices
 // Each version is tuned for different access patterns
@@ -9,7 +9,7 @@ namespace ijk_order {
 // i,j,k order - good for row-major, but we have column-major
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int i = 0; i < M; ++i) {
     for (int j = 0; j < N; ++j) {
@@ -27,7 +27,7 @@ namespace ikj_order {
 // i,k,j order - better for column-major A access
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int i = 0; i < M; ++i) {
     for (int k = 0; k < K; ++k) {
@@ -44,7 +44,7 @@ namespace jik_order {
 // j,i,k order - good for column-major C access
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int j = 0; j < N; ++j) {
     for (int i = 0; i < M; ++i) {
@@ -62,7 +62,7 @@ namespace jki_order {
 // j,k,i order - optimal for column-major with B caching
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int j = 0; j < N; ++j) {
     for (int k = 0; k < K; ++k) {
@@ -79,7 +79,7 @@ namespace kij_order {
 // k,i,j order - good for register reuse
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int k = 0; k < K; ++k) {
     for (int i = 0; i < M; ++i) {
@@ -96,7 +96,7 @@ namespace kji_order {
 // k,j,i order - optimal for column-major with both A and B caching
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   for (int k = 0; k < K; ++k) {
     for (int j = 0; j < N; ++j) {
@@ -135,4 +135,4 @@ void dgemm_kji(int M, int N, int K, const double* A, const double* B,
   kji_order::dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::loop_reorder
+}  // namespace mm::impl::loop_reorder

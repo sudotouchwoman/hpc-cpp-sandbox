@@ -3,7 +3,7 @@
 
 #include "dgemm.hpp"
 
-namespace dgemm::impl::advanced {
+namespace mm::impl::advanced {
 
 // Advanced blocking with register-level optimizations
 constexpr int L1_BLOCK_I = 8;    // Register block for i
@@ -34,7 +34,7 @@ inline void micro_kernel_register_blocked(double alpha, const double* A,
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
 
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   // Multi-level cache hierarchy blocking with JKI outer loop order
   for (int jj = 0; jj < N; jj += L2_BLOCK) {
@@ -71,4 +71,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::advanced
+}  // namespace mm::impl::advanced

@@ -1,16 +1,16 @@
 #include "dgemm.hpp"
 #include <cstring>
 
-namespace dgemm {
+namespace mm {
 
 // Default implementation uses the optimized version
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
-  impl::optimized::dgemm_impl(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  impl::loop_reorder::jki_order::dgemm_impl(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
-  impl::optimized::dgemm(M, N, K, A, B, C);
+  impl::loop_reorder::dgemm_jki(M, N, K, A, B, C);
 }
 
 void init_target_matrix(int M, int N, double beta, double* C, int ldc) {

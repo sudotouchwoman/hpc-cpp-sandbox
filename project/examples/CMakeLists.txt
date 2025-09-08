@@ -14,5 +14,5 @@ add_test(NAME dgemm_benchmark COMMAND benchmark)
 # Set test properties
 set_tests_properties(dgemm_benchmark PROPERTIES
     TIMEOUT 300  # 5 minutes timeout
-    ENVIRONMENT "OMP_NUM_THREADS=4"  # Set OpenMP threads for testing
+    ENVIRONMENT "OMP_NUM_THREADS=1"  # Set OpenMP threads for testing
 )

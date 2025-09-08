@@ -1,7 +1,7 @@
 #include <algorithm>
 #include "dgemm.hpp"
 
-namespace dgemm::impl::unrolled {
+namespace mm::impl::unrolled {
 
 constexpr int BLOCK_SIZE = 64;
 constexpr int UNROLL_FACTOR = 4;
@@ -11,7 +11,7 @@ void dgemm_impl(int M, int N, int K, double alpha,
                 const double* __restrict__ B, int ldb,
                 double beta, double* __restrict__ C, int ldc) {
 
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
   // J-outer blocking; micro-kernel accumulates over k, stores once
   for (int jj = 0; jj < N; jj += BLOCK_SIZE) {
@@ -66,4 +66,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::unrolled
+}  // namespace mm::impl::unrolled

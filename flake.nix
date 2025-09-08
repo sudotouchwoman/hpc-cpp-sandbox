@@ -23,7 +23,7 @@
 
               gdb
               boost
-              # openblas
+              openblas
             ];
 
             # this exquisite crutch lets me reference absolute path to clang++

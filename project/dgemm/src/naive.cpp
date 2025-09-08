@@ -1,6 +1,6 @@
 #include "dgemm.hpp"
 
-namespace dgemm::impl::naive {
+namespace mm::impl::naive {
 
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
            const double* B, int ldb, double beta, double* C, int ldc) {
@@ -12,7 +12,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
   // thus for a M*N matrix A: A_{y,x} -> A[y + x*M]
 
   // Scale C by beta first or zero-out
-  dgemm::init_target_matrix(M, N, beta, C, ldc);
+  mm::init_target_matrix(M, N, beta, C, ldc);
 
 
   // Perform matrix multiplication: C += alpha * A * B
@@ -37,4 +37,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::naive
+}  // namespace mm::impl::naive

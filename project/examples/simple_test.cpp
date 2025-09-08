@@ -28,19 +28,15 @@ int main() {
 
   std::cout << "Testing naive implementation..." << std::endl;
   std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::naive::dgemm(M, N, K, A.data(), B.data(), C.data());
+  mm::impl::naive::dgemm(M, N, K, A.data(), B.data(), C.data());
 
   std::cout << "Testing OpenMP implementation..." << std::endl;
   std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
+  mm::impl::omp::dgemm(M, N, K, A.data(), B.data(), C.data());
 
   std::cout << "Testing OpenMP implementation with blocking..." << std::endl;
   std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::omp_cache_blocked::dgemm(M, N, K, A.data(), B.data(), C.data());
-
-  std::cout << "Testing optimized implementation..." << std::endl;
-  std::fill(C.begin(), C.end(), 0.0);
-  dgemm::impl::optimized::dgemm(M, N, K, A.data(), B.data(), C.data());
+  mm::impl::omp_cache_blocked::dgemm(M, N, K, A.data(), B.data(), C.data());
 
   std::cout << "All tests completed successfully!" << std::endl;
   return 0;

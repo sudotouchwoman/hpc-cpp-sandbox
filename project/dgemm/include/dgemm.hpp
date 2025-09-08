@@ -1,6 +1,6 @@
 #pragma once
 
-namespace dgemm {
+namespace mm {
 
 /**
  * @brief DGEMM (Double-precision General Matrix Multiply) implementations
@@ -57,16 +57,6 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace omp_cache_blocked
-
-namespace optimized {
-/**
-     * @brief Optimized DGEMM implementation with cache blocking
-     */
-void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-           const double* B, int ldb, double beta, double* C, int ldc);
-
-void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
-}  // namespace optimized
 
 namespace loop_reorder {
 namespace ijk_order {
@@ -174,4 +164,4 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 
-}  // namespace dgemm
+}  // namespace mm

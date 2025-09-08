@@ -19,7 +19,7 @@ using vec_t = double;
 constexpr int VECTOR_SIZE = 1;
 #endif
 
-namespace dgemm::impl::omp {
+namespace mm::impl::omp {
 
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc) {
@@ -69,9 +69,9 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::omp
+}  // namespace mm::impl::omp
 
-namespace dgemm::impl::omp_cache_blocked {
+namespace mm::impl::omp_cache_blocked {
 
 // cache blocking window - can be tuned for a specific CPU with the following expression:
 // sqrt( L1_CACHE_SIZE / (3 * sizeof(double)) )
@@ -127,4 +127,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
   dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
-}  // namespace dgemm::impl::omp_cache_blocked
+}  // namespace mm::impl::omp_cache_blocked
