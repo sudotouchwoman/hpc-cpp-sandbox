@@ -143,9 +143,9 @@ std::vector<Implementation> get_implementations() {
   impls.emplace_back("Unrolled", "Loop unrolling + prefetch",
                      mm::impl::unrolled::dgemm);
   impls.emplace_back("Blocked", "Micro-Kernel with reduced stores",
-                     mm::impl::advanced::dgemm);
+                     mm::impl::blocked::dgemm);
   impls.emplace_back("Packed A", "Micro-kernel, transpose A blocks",
-                     mm::impl::advanced::packed_a::dgemm);
+                     mm::impl::blocked::packed_a::dgemm);
 
   return impls;
 }

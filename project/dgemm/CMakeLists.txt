@@ -10,7 +10,7 @@ target_sources(dgemm PRIVATE
     src/loop_reorder.cpp
     src/vectorized.cpp
     src/unrolled.cpp
-    src/advanced.cpp
+    src/blocked.cpp
     src/blas.cpp
     src/dgemm.cpp
 )

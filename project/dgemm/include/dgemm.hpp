@@ -137,7 +137,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace unrolled
 
-namespace advanced {
+namespace blocked {
 /**
      * @brief Multi-level blocking with register-level optimizations
      */
@@ -148,7 +148,7 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 
 namespace packed_a {
 /**
-           * @brief Advanced DGEMM with A-block transpose packing (packed once per A-panel and reused across J-block)
+           * @brief blocked DGEMM with A-block transpose packing (packed once per A-panel and reused across J-block)
            */
 void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
                 const double* B, int ldb, double beta, double* C, int ldc);
@@ -156,7 +156,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace packed_a
 
-}  // namespace advanced
+}  // namespace blocked
 
 #ifdef HAVE_BLAS
 namespace blas {

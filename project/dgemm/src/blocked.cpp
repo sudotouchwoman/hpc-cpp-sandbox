@@ -47,14 +47,14 @@ constexpr int VECTOR_ALIGN = 8;
 #define VEC_SETZERO() (0.0)
 #endif
 
-namespace mm::impl::advanced {
+namespace mm::impl::blocked {
 
 // Optimized blocking parameters - keep what works from JKI
 constexpr int L1_BLOCK_K = 64;   // Large K-block like vectorized
 constexpr int L1_BLOCK_I = 64;   // I-block for vectorization
 constexpr int L1_BLOCK_J = 128;  // J-block for register reuse
 
-// Advanced micro-kernel using proven JKI pattern with aggressive vectorization
+// micro-kernel using JIK pattern to reduce stores to C
 inline void micro_kernel(double alpha, const double* __restrict__ A, int lda,
                          const double* __restrict__ B, int ldb,
                          double* __restrict__ C, int ldc, int i_start,
@@ -265,4 +265,4 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
 
 }  // namespace packed_a
 
-}  // namespace mm::impl::advanced
+}  // namespace mm::impl::blocked
