@@ -26,7 +26,7 @@ endif()
 
 # Set compiler flags for debug
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O2 -Wall -Wextra -Werror")
 endif()
 
 # Add subdirectories

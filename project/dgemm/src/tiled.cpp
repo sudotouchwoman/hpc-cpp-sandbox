@@ -142,7 +142,7 @@ static inline void addDot4x4(int K, double alpha, const double* __restrict__ A,
 
 static void dgemm_block16x16(int M, int N, int K, double alpha,
                              const double* __restrict__ A, int lda,
-                             const double* __restrict__ B, int ldb, double beta,
+                             const double* __restrict__ B, int ldb, double,
                              double* __restrict__ C, int ldc, int i_start,
                              int j_start) {
   // this implementation does 16x16 dgemm as a series of 4x4 micro-kernel calls
@@ -158,7 +158,6 @@ static void dgemm_block16x16(int M, int N, int K, double alpha,
 
     for (int kk = 0; kk < K; kk += BLOCK_K) {
       const int k_end = std::min(kk + BLOCK_K, K);
-      const int k_block = k_end - kk;
 
       for (int ii = i_start; ii < M; ii += BLOCK_I) {
         const int i_end = std::min(ii + BLOCK_I, M);
@@ -222,7 +221,7 @@ static inline void micro_kernel_packed(double alpha,
                                        const double* __restrict__ Ap, int Mb,
                                        int Kb, const double* __restrict__ Bp,
                                        double* __restrict__ C, int ldc, int ii,
-                                       int i_end, int j) {
+                                       int j) {
   // C column j; start at row ii
   double* __restrict__ c_col = C + (j * ldc) + ii;
 
@@ -364,8 +363,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
         for (int j = jj; j < j_end; ++j) {
           const double* __restrict__ Bp = &B[kk + j * ldb];
 
-          micro_kernel_packed(alpha, A_pack.get(), Mb, Kb, Bp, C, ldc, ii,
-                              i_end, j);
+          micro_kernel_packed(alpha, A_pack.get(), Mb, Kb, Bp, C, ldc, ii, j);
         }
       }
     }
@@ -385,7 +383,7 @@ static inline void micro_kernel_packed_1x(double alpha,
                                           const double* __restrict__ Ap, int Mb,
                                           int Kb, const double* __restrict__ Bp,
                                           double* __restrict__ C, int ldc,
-                                          int ii, int i_end, int j) {
+                                          int ii, int j) {
   double* __restrict__ c_col = C + (j * ldc) + ii;
 
   int i = 0;
@@ -430,7 +428,7 @@ static inline void micro_kernel_packed_1x(double alpha,
 static inline void micro_kernel_packed_8x2(
     double alpha, const double* __restrict__ Ap, int Mb, int Kb,
     const double* __restrict__ Bp0, const double* __restrict__ Bp1,
-    double* __restrict__ C, int ldc, int ii, int i_end, int j0) {
+    double* __restrict__ C, int ldc, int ii, int j0) {
 
   double* __restrict__ c0 = C + (j0 + 0) * ldc + ii;
   double* __restrict__ c1 = C + (j0 + 1) * ldc + ii;
@@ -510,7 +508,7 @@ static inline void micro_kernel_packed_8x4(
     double alpha, const double* __restrict__ Ap, int Mb, int Kb,
     const double* __restrict__ Bp0, const double* __restrict__ Bp1,
     const double* __restrict__ Bp2, const double* __restrict__ Bp3,
-    double* __restrict__ C, int ldc, int ii, int i_end, int j0) {
+    double* __restrict__ C, int ldc, int ii, int j0) {
 
   double* __restrict__ c0 = C + (j0 + 0) * ldc + ii;
   double* __restrict__ c1 = C + (j0 + 1) * ldc + ii;
@@ -708,7 +706,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
               B_pack.get() + (static_cast<size_t>(j - jj + 3) * Kb);
 
           micro_kernel_packed_8x4(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, Bp2,
-                                  Bp3, C_tile, BLOCK_I_L2, 0, Mb, (j - jj));
+                                  Bp3, C_tile, BLOCK_I_L2, 0, (j - jj));
         }
 
         // 2-column blocks
@@ -719,7 +717,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
               B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
 
           micro_kernel_packed_8x2(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, C_tile,
-                                  BLOCK_I_L2, 0, Mb, (j - jj));
+                                  BLOCK_I_L2, 0, (j - jj));
         }
 
         // Single column tail
@@ -727,7 +725,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
           const double* __restrict__ Bp_col =
               B_pack.get() + (static_cast<size_t>(j - jj) * Kb);
           micro_kernel_packed_1x(alpha, A_pack.get(), Mb, Kb, Bp_col, C_tile,
-                                 BLOCK_I_L2, 0, Mb, (j - jj));
+                                 BLOCK_I_L2, 0, (j - jj));
         }
       }  // ii
     }  // kk
