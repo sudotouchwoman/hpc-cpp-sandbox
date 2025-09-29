@@ -642,9 +642,9 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
                 double* __restrict__ C, int ldc) {
   mm::init_target_matrix(M, N, beta, C, ldc);
 
-  static constexpr int BLOCK_J_L2 = 128;
-  static constexpr int BLOCK_I_L2 = 64;
-  static constexpr int BLOCK_K = 64;
+  static constexpr int BLOCK_J_L2 = 64;
+  static constexpr int BLOCK_I_L2 = 32;
+  static constexpr int BLOCK_K = 16;
 
   // Reusable packing buffers (single alloc per call)
   static constexpr size_t A_pack_capacity =

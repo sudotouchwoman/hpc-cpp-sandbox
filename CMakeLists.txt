@@ -17,7 +17,7 @@ endif()
 enable_testing()
 
 # Find required packages
-find_package(Boost REQUIRED COMPONENTS unit_test_framework)
+find_package(Boost CONFIG REQUIRED COMPONENTS unit_test_framework)
 
 # Set compiler flags for optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")

@@ -11,8 +11,8 @@ mkdir -p build
 cd build
 
 # Intel C++ Compiler
-CXX=$(which clang++)
-CC=$(which clang)
+CXX=$(which icpx)
+CC=$(which icx)
 
 # Configure with CMake
 echo "Configuring with CMake..."

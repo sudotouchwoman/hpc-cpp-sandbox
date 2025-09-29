@@ -133,8 +133,8 @@ std::vector<Implementation> get_implementations() {
   // impls.emplace_back("Loop-KIJ", "k,i,j order",
   //                    mm::impl::loop_reorder::dgemm_kij);
 
-  impls.emplace_back("Loop-KJI", "k,j,i order",
-                     mm::impl::loop_reorder::dgemm_kji);
+  // impls.emplace_back("Loop-KJI", "k,j,i order",
+  //                    mm::impl::loop_reorder::dgemm_kji);
 
   // Advanced implementations
   impls.emplace_back("Vectorized", "SIMD vectorized",
