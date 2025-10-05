@@ -13,6 +13,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Intel C++ Compiler specific settings
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fp-model fast -qopt-zmm-usage=high")
+endif()
+
 # Enable testing
 enable_testing()
 

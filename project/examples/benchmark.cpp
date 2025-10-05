@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
 
   const auto implementations = get_implementations();
   const std::vector<int> sizes = {32,  64,  128, 256,  382, 400,
-                                  512, 760, 800, 1024, 2048};
+                                  512, 760, 800, 1024, 1500, 2048};
 
   // header
   std::cout << "\n=== DGEMM Performance Benchmark ===\n";
