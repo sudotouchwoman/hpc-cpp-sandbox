@@ -12,6 +12,7 @@ target_sources(dgemm PRIVATE
     src/tiled.cpp
     src/blocked.cpp
     src/blas.cpp
+    src/mkl.cpp
     src/dgemm.cpp
 )
 
@@ -36,6 +37,7 @@ endif()
 find_package(MKL)
 if (MKL_FOUND)
     message("We managed to locate MKL!")
+    target_link_libraries(dgemm PUBLIC MKL::MKL)
     target_compile_definitions(dgemm PUBLIC HAVE_MKL)
 endif()
 

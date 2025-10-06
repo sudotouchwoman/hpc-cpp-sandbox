@@ -57,14 +57,28 @@ struct Implementation {
   using func_t =
       std::function<void(int, int, int, const double*, const double*, double*)>;
 
+  using lifecycle_func_t = std::function<void()>;
+
   std::string name;
   std::string description;
   func_t f;
   bool is_available;
 
-  Implementation(const std::string& name, const std::string& desc, func_t f,
-                 bool available = true)
-      : name(name), description(desc), f(f), is_available(available) {}
+  lifecycle_func_t setup = nullptr;
+  lifecycle_func_t teardown = nullptr;
+
+  Implementation(const std::string& name, const std::string& desc)
+      : name(name), description(desc), is_available(false) {}
+
+  Implementation(
+      const std::string& name, const std::string& desc, func_t f,
+      lifecycle_func_t setup = []() {}, lifecycle_func_t teardown = []() {})
+      : name(name),
+        description(desc),
+        f(f),
+        is_available(true),
+        setup(setup),
+        teardown(teardown) {}
 };
 
 // Benchmark function
@@ -78,6 +92,8 @@ double benchmark_implementation(const Implementation& impl,
     return -1.0;
   }
 
+  impl.setup();
+
   const auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < iterations; ++i) {
@@ -87,6 +103,8 @@ double benchmark_implementation(const Implementation& impl,
   const auto end = std::chrono::high_resolution_clock::now();
   const auto duration =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+  impl.teardown();
 
   return duration.count() / static_cast<double>(iterations);
 }
@@ -107,10 +125,33 @@ void shutdown_test() {
   omp_set_num_threads(1);
 }
 
+int get_num_threads() {
+  const char* omp_threads_env = std::getenv("OMP_NUM_THREADS");
+  int num_threads = omp_threads_env ? std::atoi(omp_threads_env) : 1;
+  return num_threads;
+}
+
 std::vector<Implementation> get_implementations() {
   std::vector<Implementation> impls;
 
+#ifdef HAVE_BLAS
   impls.emplace_back("BLAS", "Open BLAS", mm::impl::blas::dgemm);
+#endif
+#ifdef HAVE_MKL
+  // Set MKL threads to match OpenMP
+  const auto mkl_setup = []() {
+    const int num_threads = omp_get_num_threads();
+    mm::impl::mkl::set_num_threads(num_threads);
+  };
+
+  const auto mkl_teardown = []() {
+    mm::impl::mkl::set_num_threads(1);
+    mm::impl::mkl::cleanup_buffers();
+  };
+
+  impls.emplace_back("MKL", "MKL", mm::impl::mkl::dgemm, mkl_setup,
+                     mkl_teardown);
+#endif
 
   // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
   // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
@@ -195,7 +236,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark) {
   constexpr int num_iterations = 10;
 
   const auto implementations = get_implementations();
-  const std::vector<int> sizes = {32,  64,  128, 256,  382, 400,
+  const std::vector<int> sizes = {32,  64,  128, 256,  382,  400,
                                   512, 760, 800, 1024, 1500, 2048};
 
   // header

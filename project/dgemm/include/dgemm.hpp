@@ -182,19 +182,20 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 }  // namespace blocked
 
 #ifdef HAVE_MKL
-namespace mm::impl::mkl {
-    // Direct MKL DGEMM wrapper
-    void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-                    const double* B, int ldb, double beta, double* C, int ldc);
-    
-    // Simplified interface
-    void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
-    
-    // Threading control utilities
-    void set_num_threads(int threads);
-    int get_max_threads();
-    void cleanup_buffers();
-} // namespace mkl
+namespace mkl {
+/**
+ * @brief MKL DGEMM implementation
+ */
+void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
+                const double* B, int ldb, double beta, double* C, int ldc);
+
+void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+
+// Threading control utility adapters
+void set_num_threads(int threads);
+int get_max_threads();
+void cleanup_buffers();
+}  // namespace mkl
 #endif
 
 #ifdef HAVE_BLAS
