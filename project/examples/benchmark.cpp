@@ -160,7 +160,8 @@ std::vector<Implementation> get_implementations() {
 #ifdef HAVE_MKL
   // Set MKL threads to match OpenMP
   const auto mkl_setup = []() {
-    const int num_threads = omp_get_num_threads();
+    const int num_threads = omp_get_max_threads();
+    mm::impl::mkl::set_dynamic(false);
     mm::impl::mkl::set_num_threads(num_threads);
   };
 
@@ -174,9 +175,9 @@ std::vector<Implementation> get_implementations() {
 #endif
 
   // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
-  // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
-  // impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
-  //                    mm::impl::omp_cache_blocked::dgemm);
+  impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
+  impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
+                     mm::impl::omp_cache_blocked::dgemm);
 
   // impls.emplace_back("Loop-IJK", "i,j,k order",
   //  mm::impl::loop_reorder::dgemm_ijk);
@@ -200,8 +201,8 @@ std::vector<Implementation> get_implementations() {
   // Advanced implementations
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);
-  // impls.emplace_back("Tiled", "Tiling + Register optimization",
-  //                    mm::impl::tiled::dgemm);
+  impls.emplace_back("Tiled", "Tiling + Register optimization",
+                     mm::impl::tiled::dgemm);
   // impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
   //                    mm::impl::tiled::packed_a::dgemm);
   // impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
@@ -209,8 +210,8 @@ std::vector<Implementation> get_implementations() {
 
   // impls.emplace_back("SIMD + Tiled", "Micro-Kernel with reduced stores",
   //                    mm::impl::blocked::dgemm);
-  // impls.emplace_back("SIMD + Tiled + Pack A", "Micro-kernel, A Transpose",
-  //                    mm::impl::blocked::packed_a::dgemm);
+  impls.emplace_back("SIMD + Tiled + Pack A", "Micro-kernel, A Transpose",
+                     mm::impl::blocked::packed_a::dgemm);
 
   return impls;
 }
@@ -261,6 +262,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
 
   // header
   std::cout << "\n=== DGEMM Performance Benchmark ===\n";
+  std::cout << "omp_get_max_threads: " << omp_get_max_threads() << std::endl;
   std::cout << std::setw(10) << "Size";
 
   for (const auto& impl : implementations) {

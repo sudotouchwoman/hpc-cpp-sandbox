@@ -28,6 +28,9 @@ target_link_libraries(dgemm PUBLIC OpenMP::OpenMP_CXX)
 target_compile_definitions(dgemm PUBLIC HAVE_OPENMP)
 
 # Add BLAS support if available (optional)
+# Prefer OpenBLAS (not mkl version)
+set(BLA_VENDOR OpenBLAS)
+
 find_package(BLAS)
 if(BLAS_FOUND)
     target_link_libraries(dgemm PUBLIC ${BLAS_LIBRARIES})

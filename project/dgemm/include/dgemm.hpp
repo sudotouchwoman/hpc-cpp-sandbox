@@ -193,7 +193,7 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
 
 // Threading control utility adapters
 void set_num_threads(int threads);
-int get_max_threads();
+void set_dynamic(bool enabled);
 void cleanup_buffers();
 }  // namespace mkl
 #endif

@@ -234,6 +234,35 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
   const size_t A_pack_capacity =
       static_cast<size_t>(L1_BLOCK_I) * static_cast<size_t>(L1_BLOCK_K);
 
+#ifdef HAVE_OPENMP
+#pragma omp parallel
+  {
+    std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
+
+#pragma omp for collapse(2) schedule(static)
+    for (int jj = 0; jj < N; jj += L1_BLOCK_J) {
+      for (int ii = 0; ii < M; ii += L1_BLOCK_I) {
+        const int j_end = std::min(jj + L1_BLOCK_J, N);
+        const int i_end = std::min(ii + L1_BLOCK_I, M);
+
+        for (int kk = 0; kk < K; kk += L1_BLOCK_K) {
+          const int k_end = std::min(kk + L1_BLOCK_K, K);
+          const int Kb = k_end - kk;
+          const int Mb = i_end - ii;
+
+          // Pack current A-panel into thread-local buffer
+          pack_A_block_transpose(A, lda, A_pack.get(), ii, i_end, kk, k_end);
+
+          for (int j = jj; j < j_end; ++j) {
+            const double* Bp = &B[kk + j * ldb];
+            micro_kernel_packed(alpha, A_pack.get(), Mb, Kb, Bp, C, ldc, ii,
+                                i_end, j);
+          }
+        }
+      }
+    }
+  }
+#else
   std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
 
   for (int jj = 0; jj < N; jj += L1_BLOCK_J) {
@@ -257,6 +286,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
       }
     }
   }
+#endif
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {

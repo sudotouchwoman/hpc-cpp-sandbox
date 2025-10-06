@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "dgemm.hpp"
 
@@ -195,12 +198,22 @@ static void dgemm_block16x16(int M, int N, int K, double alpha,
 void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
                 int lda, const double* __restrict__ B, int ldb, double beta,
                 double* __restrict__ C, int ldc) {
-
   mm::init_target_matrix(M, N, beta, C, ldc);
 
   static constexpr int BLOCK_J_L2 = 128;
   static constexpr int BLOCK_I_L2 = 64;
 
+#ifdef HAVE_OPENMP
+#pragma omp parallel for collapse(2) schedule(static)
+  for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
+    for (int ii = 0; ii < M; ii += BLOCK_I_L2) {
+      const int j_end = std::min(jj + BLOCK_J_L2, N);
+      const int i_end = std::min(ii + BLOCK_I_L2, M);
+      dgemm_block16x16(i_end, j_end, K, alpha, A, lda, B, ldb, beta, C, ldc, ii,
+                       jj);
+    }
+  }
+#else
   for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
     const int j_end = std::min(jj + BLOCK_J_L2, N);
 
@@ -211,6 +224,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
                        jj);
     }
   }
+#endif
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
@@ -329,7 +343,6 @@ static inline void pack_B_block_k_contiguous(const double* __restrict__ B,
 }
 
 namespace packed_a {
-
 void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
                 int lda, const double* __restrict__ B, int ldb, double beta,
                 double* __restrict__ C, int ldc) {
@@ -377,7 +390,6 @@ void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
 }  // namespace packed_a
 
 namespace packed {
-
 // 8x1 single-column fallback (local to 'packed'; don't touch packed_a)
 static inline void micro_kernel_packed_1x(double alpha,
                                           const double* __restrict__ Ap, int Mb,

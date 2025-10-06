@@ -42,13 +42,11 @@ void set_num_threads(int threads) {
 #endif
 }
 
-int get_max_threads() {
+void set_dynamic(bool enabled) {
 #ifdef HAVE_MKL
-  // Get the maximum number of threads MKL can use
-  return mkl_get_max_threads();
+  mkl_set_dynamic(static_cast<int>(enabled));
 #else
-  // Return 1 if MKL is not available (sequential execution)
-  return 1;
+  (void)enabled;
 #endif
 }
 
