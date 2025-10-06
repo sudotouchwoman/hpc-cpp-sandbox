@@ -5,7 +5,11 @@
 #endif
 
 // Vector instruction support
-#ifdef __AVX2__
+#ifdef __AVX512F__
+#include <immintrin.h>
+using vec_t = __m512d;  // 8 doubles per vector
+constexpr int VECTOR_SIZE = 8;
+#elif defined(__AVX2__)
 #include <immintrin.h>
 using vec_t = __m256d;  // 4 doubles per vector
 constexpr int VECTOR_SIZE = 4;
