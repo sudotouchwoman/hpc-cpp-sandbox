@@ -20,6 +20,6 @@ set_tests_properties(dgemm_benchmark PROPERTIES
 add_test(NAME dgemm_benchmark_csv COMMAND benchmark --run_test=performance_benchmark_csv)
 set_tests_properties(dgemm_benchmark_csv PROPERTIES
     TIMEOUT 900  # 15 minutes timeout for multiple thread counts
-    ENVIRONMENT "OMP_NUM_THREADS_LIST=1,2,4;CSV_OUTPUT=benchmark_results.csv"
+    ENVIRONMENT "BENCHMARK_THREADS_LIST=1,2,4;CSV_OUTPUT_PATH=benchmark_results.csv"
     LABELS "long"
 )

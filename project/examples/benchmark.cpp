@@ -336,6 +336,10 @@ std::vector<Implementation> get_best_implementations() {
   impls.emplace_back("MKL", "MKL", mm::impl::mkl::dgemm, mkl_setup,
                      mkl_teardown);
 #endif
+  // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
+  impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
+  impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
+                     mm::impl::omp_cache_blocked::dgemm);
 
   impls.emplace_back("Loop-JKI", "j,k,i order",
                      mm::impl::loop_reorder::dgemm_jki);
@@ -344,13 +348,7 @@ std::vector<Implementation> get_best_implementations() {
                      mm::impl::vectorized::dgemm);
   impls.emplace_back("Tiled", "Tiling + Register optimization",
                      mm::impl::tiled::dgemm);
-  impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
-                     mm::impl::tiled::packed_a::dgemm);
-  impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
-                     mm::impl::tiled::packed::dgemm);
 
-  impls.emplace_back("SIMD + Tiled", "Micro-Kernel with reduced stores",
-                     mm::impl::blocked::dgemm);
   impls.emplace_back("SIMD + Tiled + Pack A", "Micro-kernel, A Transpose",
                      mm::impl::blocked::packed_a::dgemm);
 
@@ -364,13 +362,15 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_csv) {
   // const std::vector<int> sizes = {32,  64,   128,  256,  382,  500, 512,
   //                                 760, 1000, 1024, 1500, 2000, 2048};
 
+  // TODO: uncomment larger sizes
   const std::vector<int> sizes = {32, 64, 128, 256, 382, 500, 512};
 
   // Parse thread counts from environment variable
-  const auto thread_counts = csv::parse_thread_list("OMP_NUM_THREADS_LIST", 1);
+  const auto thread_counts =
+      csv::parse_thread_list("BENCHMARK_THREADS_LIST", 1);
 
   // Get CSV output filename from environment or use default
-  const char* csv_output_env = std::getenv("CSV_OUTPUT");
+  const char* csv_output_env = std::getenv("CSV_OUTPUT_PATH");
   const std::string csv_filename =
       csv_output_env ? csv_output_env : "benchmark_results.csv";
 
