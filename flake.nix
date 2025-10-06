@@ -6,7 +6,11 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem
       (system:
-        let pkgs = import nixpkgs { inherit system; }; in
+        let pkgs = import nixpkgs {
+          inherit system;
+          # allow unfree predicate to allow mkl
+          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) ["mkl"];
+        }; in
         {
           devShell = pkgs.mkShell {
             name = "cpp-build-toolchain";
@@ -24,6 +28,7 @@
               gdb
               boost
               openblas
+              mkl
             ];
 
             # this exquisite crutch lets me reference absolute path to clang++

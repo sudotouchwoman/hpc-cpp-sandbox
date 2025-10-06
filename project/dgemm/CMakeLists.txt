@@ -33,5 +33,11 @@ if(BLAS_FOUND)
     target_compile_definitions(dgemm PUBLIC HAVE_BLAS)
 endif()
 
+find_package(MKL)
+if (MKL_FOUND)
+    message("We managed to locate MKL!")
+    target_compile_definitions(dgemm PUBLIC HAVE_MKL)
+endif()
+
 # Create include directory structure
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include)

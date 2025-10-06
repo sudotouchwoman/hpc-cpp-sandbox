@@ -11,5 +11,6 @@ module load\
     # llvm/v13.0.1/clang\
 
 export Boost_ROOT=/opt/hse/libs/cpp_tools/boost/v1.88.0
+export MKL_ROOT=/opt/software/intel/oneapi_2022/mkl/latest
 
 module list
