@@ -40,9 +40,9 @@ constexpr int VECTOR_SIZE = 1;
 namespace mm::impl::vectorized {
 
 // Optimized blocking for better cache performance and vectorization
-constexpr int BLOCK_K = 64;  // Large K-block for memory bandwidth efficiency
-constexpr int BLOCK_I = 64;  // I-block optimized for vectorization
-constexpr int BLOCK_J = 64;  // Larger J-block for better amortization
+constexpr int BLOCK_K = 128;  // Large K-block for memory bandwidth efficiency
+constexpr int BLOCK_I = 128;  // I-block optimized for vectorization
+constexpr int BLOCK_J = 32;  // Larger J-block for better amortization
 
 // Streamlined vectorized micro-kernel focused on performance
 inline void micro_kernel_vectorized(double alpha, const double* __restrict__ A,
