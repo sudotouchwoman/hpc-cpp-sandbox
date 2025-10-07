@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -356,6 +357,37 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
   constexpr size_t A_pack_capacity =
       static_cast<size_t>(BLOCK_I_L2) * static_cast<size_t>(BLOCK_K);
 
+#ifdef HAVE_OPENMP
+#pragma omp parallel
+  {
+    thread_local std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
+
+    for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
+      const int j_end = std::min(jj + BLOCK_J_L2, N);
+
+      for (int kk = 0; kk < K; kk += BLOCK_K) {
+        const int k_end = std::min(kk + BLOCK_K, K);
+        const int Kb = k_end - kk;
+
+#pragma omp for schedule(static)
+        for (int ii = 0; ii < M; ii += BLOCK_I_L2) {
+          const int i_end = std::min(ii + BLOCK_I_L2, M);
+          const int Mb = i_end - ii;
+
+          // Pack A-panel (ii:i_end, kk:k_end) into Ap (Kb x Mb; i-fast)
+          pack_A_block_transpose(A, lda, A_pack.get(), ii, i_end, kk, k_end);
+
+          // Stream B by j, reuse packed A across the J-panel
+          for (int j = jj; j < j_end; ++j) {
+            const double* __restrict__ Bp = &B[kk + j * ldb];
+            micro_kernel_packed(alpha, A_pack.get(), Mb, Kb, Bp, C, ldc, ii, j);
+          }
+        }
+      }
+    }
+  }
+#else
+
   std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
 
   for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
@@ -369,18 +401,16 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
         const int i_end = std::min(ii + BLOCK_I_L2, M);
         const int Mb = i_end - ii;
 
-        // Pack A-panel (ii:i_end, kk:k_end) into Ap (Kb x Mb; i-fast)
         pack_A_block_transpose(A, lda, A_pack.get(), ii, i_end, kk, k_end);
 
-        // Stream B by j, reuse packed A across the J-panel
         for (int j = jj; j < j_end; ++j) {
           const double* __restrict__ Bp = &B[kk + j * ldb];
-
           micro_kernel_packed(alpha, A_pack.get(), Mb, Kb, Bp, C, ldc, ii, j);
         }
       }
     }
   }
+#endif
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
@@ -675,6 +705,101 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
 
   std::unique_ptr<double[]> C_pack(new double[C_pack_capacity]);
 
+#ifdef HAVE_OPENMP
+#pragma omp parallel
+  {
+    std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
+
+    for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
+      const int j_end = std::min(jj + BLOCK_J_L2, N);
+      const int Jb = j_end - jj;
+
+      for (int kk = 0; kk < K; kk += BLOCK_K) {
+        const int k_end = std::min(kk + BLOCK_K, K);
+        const int Kb = k_end - kk;
+
+// pack B ONCE per (jj,kk), before distributing ii work
+#pragma omp single
+        {
+          pack_B_block_k_contiguous(B, ldb, B_pack.get(), jj, j_end, kk, k_end);
+        }
+
+// distribute ii tiles among threads
+#pragma omp for schedule(static)
+        for (int ii = 0; ii < M; ii += BLOCK_I_L2) {
+          const int i_end = std::min(ii + BLOCK_I_L2, M);
+          const int Mb = i_end - ii;
+
+          // per-thread pack of A panel
+          pack_A_block_transpose(A, lda, A_pack.get(), ii, i_end, kk, k_end);
+
+          // select thread’s C_tile slice; zero only at kk == 0
+          double* __restrict__ C_tile =
+              C_pack.get() +
+              static_cast<size_t>(ii / BLOCK_I_L2) * BLOCK_I_L2 * BLOCK_J_L2;
+
+          if (kk == 0) {
+            std::memset(C_tile, 0, sizeof(double) * BLOCK_I_L2 * Jb);
+          }
+
+          // micro-kernel over j using shared B_pack
+          int j = jj;
+          // 4-column blocks
+          for (; j + 4 <= j_end; j += 4) {
+            const double* __restrict__ Bp0 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
+            const double* __restrict__ Bp1 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
+            const double* __restrict__ Bp2 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 2) * Kb);
+            const double* __restrict__ Bp3 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 3) * Kb);
+
+            micro_kernel_packed_8x4(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1, Bp2,
+                                    Bp3, C_tile, BLOCK_I_L2, 0, (j - jj));
+          }
+
+          // 2-column blocks
+          for (; j + 2 <= j_end; j += 2) {
+            const double* __restrict__ Bp0 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 0) * Kb);
+            const double* __restrict__ Bp1 =
+                B_pack.get() + (static_cast<size_t>(j - jj + 1) * Kb);
+
+            micro_kernel_packed_8x2(alpha, A_pack.get(), Mb, Kb, Bp0, Bp1,
+                                    C_tile, BLOCK_I_L2, 0, (j - jj));
+          }
+
+          // Single column tail
+          for (; j < j_end; ++j) {
+            const double* __restrict__ Bp_col =
+                B_pack.get() + (static_cast<size_t>(j - jj) * Kb);
+            micro_kernel_packed_1x(alpha, A_pack.get(), Mb, Kb, Bp_col, C_tile,
+                                   BLOCK_I_L2, 0, (j - jj));
+          }
+        }  // ii
+      }  // kk
+
+// commit C_pack slice-wise back to C
+#pragma omp for schedule(static)
+      for (int ii = 0; ii < M; ii += BLOCK_I_L2) {
+        const int i_end = std::min(ii + BLOCK_I_L2, M);
+        const int Mb = i_end - ii;
+        const double* __restrict__ C_tile =
+            C_pack.get() +
+            static_cast<size_t>(ii / BLOCK_I_L2) * BLOCK_I_L2 * BLOCK_J_L2;
+
+        for (int j = 0; j < Jb; ++j) {
+          double* __restrict__ c_dst = C + (ii + (jj + j) * ldc);
+          const double* __restrict__ c_src =
+              C_tile + static_cast<size_t>(j) * BLOCK_I_L2;
+          for (int i = 0; i < Mb; ++i)
+            c_dst[i] = c_src[i];
+        }
+      }
+    }  // jj
+  }  // parallel
+#else
   for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
     const int j_end = std::min(jj + BLOCK_J_L2, N);
     const int Jb = j_end - jj;
@@ -763,6 +888,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
       }
     }  // ii commit
   }  // jj
+#endif
 }
 
 void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {

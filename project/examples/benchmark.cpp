@@ -188,8 +188,8 @@ std::vector<Implementation> get_implementations() {
   // impls.emplace_back("Loop-JIK", "j,i,k order",
   //                    mm::impl::loop_reorder::dgemm_jik);
 
-  impls.emplace_back("Loop-JKI", "j,k,i order",
-                     mm::impl::loop_reorder::dgemm_jki);
+  // impls.emplace_back("Loop-JKI", "j,k,i order",
+  //                    mm::impl::loop_reorder::dgemm_jki);
 
   // inefficient
   // impls.emplace_back("Loop-KIJ", "k,i,j order",
@@ -203,10 +203,10 @@ std::vector<Implementation> get_implementations() {
                      mm::impl::vectorized::dgemm);
   impls.emplace_back("Tiled", "Tiling + Register optimization",
                      mm::impl::tiled::dgemm);
-  // impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
-  //                    mm::impl::tiled::packed_a::dgemm);
-  // impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
-  //                    mm::impl::tiled::packed::dgemm);
+  impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
+                     mm::impl::tiled::packed_a::dgemm);
+  impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
+                     mm::impl::tiled::packed::dgemm);
 
   // impls.emplace_back("SIMD + Tiled", "Micro-Kernel with reduced stores",
   //                    mm::impl::blocked::dgemm);
@@ -336,18 +336,19 @@ std::vector<Implementation> get_best_implementations() {
   impls.emplace_back("MKL", "MKL", mm::impl::mkl::dgemm, mkl_setup,
                      mkl_teardown);
 #endif
-  // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
   impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
   impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
                      mm::impl::omp_cache_blocked::dgemm);
 
-  impls.emplace_back("Loop-JKI", "j,k,i order",
-                     mm::impl::loop_reorder::dgemm_jki);
-
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);
+
   impls.emplace_back("Tiled", "Tiling + Register optimization",
                      mm::impl::tiled::dgemm);
+  impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
+                     mm::impl::tiled::packed_a::dgemm);
+  impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
+                     mm::impl::tiled::packed::dgemm);
 
   impls.emplace_back("SIMD + Tiled + Pack A", "Micro-kernel, A Transpose",
                      mm::impl::blocked::packed_a::dgemm);

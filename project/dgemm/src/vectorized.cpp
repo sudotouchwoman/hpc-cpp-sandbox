@@ -82,6 +82,9 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
 
   mm::init_target_matrix(M, N, beta, C, ldc);
 
+  #ifdef HAVE_OPENMP
+  #pragma omp parallel for collapse(3) schedule(static)
+  #endif
   // Two-level blocking
   for (int jj = 0; jj < N; jj += BLOCK_J) {
     const int j_end = std::min(jj + BLOCK_J, N);
