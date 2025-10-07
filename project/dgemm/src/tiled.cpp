@@ -360,7 +360,7 @@ void dgemm_impl(int M, int N, int K, double alpha, const double* __restrict__ A,
 #ifdef HAVE_OPENMP
 #pragma omp parallel
   {
-    thread_local std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
+    std::unique_ptr<double[]> A_pack(new double[A_pack_capacity]);
 
     for (int jj = 0; jj < N; jj += BLOCK_J_L2) {
       const int j_end = std::min(jj + BLOCK_J_L2, N);

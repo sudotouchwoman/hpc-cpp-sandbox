@@ -175,7 +175,7 @@ std::vector<Implementation> get_implementations() {
 #endif
 
   // impls.emplace_back("Naive", "Basic triple-loop", mm::impl::naive::dgemm);
-  impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
+  // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
   impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
                      mm::impl::omp_cache_blocked::dgemm);
 
@@ -201,8 +201,8 @@ std::vector<Implementation> get_implementations() {
   // Advanced implementations
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);
-  impls.emplace_back("Tiled", "Tiling + Register optimization",
-                     mm::impl::tiled::dgemm);
+  // impls.emplace_back("Tiled", "Tiling + Register optimization",
+  //                    mm::impl::tiled::dgemm);
   impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
                      mm::impl::tiled::packed_a::dgemm);
   impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
@@ -336,15 +336,15 @@ std::vector<Implementation> get_best_implementations() {
   impls.emplace_back("MKL", "MKL", mm::impl::mkl::dgemm, mkl_setup,
                      mkl_teardown);
 #endif
-  impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
+  // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
   impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
                      mm::impl::omp_cache_blocked::dgemm);
 
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);
 
-  impls.emplace_back("Tiled", "Tiling + Register optimization",
-                     mm::impl::tiled::dgemm);
+  // impls.emplace_back("Tiled", "Tiling + Register optimization",
+  //                    mm::impl::tiled::dgemm);
   impls.emplace_back("Tiled + Pack A", "Tiling + A Transpose",
                      mm::impl::tiled::packed_a::dgemm);
   impls.emplace_back("Tiled + Pack all", "Tiling + A Transpose + B + C tile",
@@ -360,11 +360,11 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_csv) {
   constexpr int num_iterations = 10;
 
   const auto implementations = get_best_implementations();
-  // const std::vector<int> sizes = {32,  64,   128,  256,  382,  500, 512,
-  //                                 760, 1000, 1024, 1500, 2000, 2048};
+  const std::vector<int> sizes = {32,  64,   128,  256,  382,  500, 512,
+                                  760, 1000, 1024, 1500, 2000, 2048};
 
   // TODO: uncomment larger sizes
-  const std::vector<int> sizes = {32, 64, 128, 256, 382, 500, 512};
+  // const std::vector<int> sizes = {32, 64, 128, 256, 382, 500, 512};
 
   // Parse thread counts from environment variable
   const auto thread_counts =
