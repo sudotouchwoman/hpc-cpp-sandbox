@@ -24,6 +24,13 @@ enable_testing()
 # Find required packages
 find_package(Boost CONFIG REQUIRED COMPONENTS unit_test_framework)
 
+option(ENABLE_PERF_SYMBOLS "Enable symbols/frame-pointers for perf" ON)
+
+if(ENABLE_PERF_SYMBOLS)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -fno-omit-frame-pointer")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--build-id")
+endif()
+
 # Set compiler flags for optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=x86-64-v4 -mfma -ffp-contract=fast -fno-math-errno -fno-trapping-math -fopenmp-simd")

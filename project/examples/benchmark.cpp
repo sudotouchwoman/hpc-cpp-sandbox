@@ -337,8 +337,8 @@ std::vector<Implementation> get_best_implementations() {
                      mkl_teardown);
 #endif
   // impls.emplace_back("OMP", "OpenMP parallel", mm::impl::omp::dgemm);
-  impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
-                     mm::impl::omp_cache_blocked::dgemm);
+  // impls.emplace_back("OMP+Blocked", "OpenMP with blocking",
+  //                    mm::impl::omp_cache_blocked::dgemm);
 
   impls.emplace_back("Vectorized", "SIMD vectorized",
                      mm::impl::vectorized::dgemm);

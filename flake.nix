@@ -29,6 +29,8 @@
               boost
               openblas
               mkl
+
+              linuxPackages.perf
             ];
 
             # this exquisite crutch lets me reference absolute path to clang++
