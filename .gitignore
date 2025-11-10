@@ -1,6 +1,9 @@
 .direnv/
 .vscode/
 
+profiles/
+docs/
+
 bin/
 logs/
 

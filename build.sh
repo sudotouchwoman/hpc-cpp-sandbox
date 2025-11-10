@@ -11,12 +11,15 @@ mkdir -p build
 cd build
 
 # Intel C++ Compiler
-CXX=$(which clang++)
-CC=$(which clang)
+CXX=$(which c++)
+CC=$(which cc)
 
 # Configure with CMake
 echo "Configuring with CMake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_C_COMPILER=$CC -G Ninja
+cmake .. -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=$CXX \
+    -DCMAKE_C_COMPILER=$CC \
+    -G Ninja
 
 # Build
 echo "Building project..."

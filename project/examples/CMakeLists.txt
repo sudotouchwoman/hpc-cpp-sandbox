@@ -23,3 +23,21 @@ set_tests_properties(dgemm_benchmark_csv PROPERTIES
     ENVIRONMENT "BENCHMARK_THREADS_LIST=1,2,4;CSV_OUTPUT_PATH=benchmark_results.csv"
     LABELS "long"
 )
+
+if(CUDAToolkit_FOUND)
+  add_executable(cuda_sanity cuda_sanity.cu)
+  target_link_libraries(cuda_sanity PRIVATE CUDA::cudart)
+
+  # GPU benchmark executable
+  if(TARGET dgemm_gpu)
+    add_executable(gpu_benchmark gpu_benchmark.cpp test_main.cpp)
+    target_link_libraries(gpu_benchmark PRIVATE dgemm_gpu dgemm Boost::unit_test_framework)
+
+    # Add GPU benchmark test
+    add_test(NAME gpu_dgemm_benchmark COMMAND gpu_benchmark)
+    set_tests_properties(gpu_dgemm_benchmark PROPERTIES
+        TIMEOUT 60  # 1 minute timeout
+        LABELS "gpu"
+    )
+  endif()
+endif()

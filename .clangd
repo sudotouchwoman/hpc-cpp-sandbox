@@ -1,4 +1,20 @@
 # clangd configuration
 CompileFlags:
   CompilationDatabase: build
-  Compiler: clang++
+  Compiler: g++
+
+---
+
+CompileFlags:
+  CompilationDatabase: build
+  Compiler: g++
+  Remove: 
+    - "-forward-unknown-to-host-compiler"
+    - "--generate-code*"
+    - "-rdc=true"
+  Add:
+    - "-stdlib=libc++"
+    - "-xcuda"
+    - "--no-cuda-version-check"
+If:
+  PathMatch: .*\.(cu|cuh)$

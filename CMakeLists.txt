@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
-project(cpp-concurrency-stuff VERSION 1.0.0 LANGUAGES CXX)
+
+project(cpp-concurrency-stuff VERSION 1.0.1 LANGUAGES CXX)
 
 # Export compile_commands.json for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -17,6 +18,17 @@ endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fp-model fast -qopt-zmm-usage=high")
 endif()
+
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+# override as needed for your device compute capability
+set(CMAKE_CUDA_ARCHITECTURES 90;120)
+set(CMAKE_CUDA_USE_STATIC_CUDA_RUNTIME OFF)
+set(CMAKE_CUDA_RUNTIME_LIBRARY Shared)
+
+enable_language(CUDA)
+
+find_package(CUDAToolkit)
 
 # Enable testing
 enable_testing()
