@@ -9,7 +9,7 @@ if(CUDAToolkit_FOUND)
   target_sources(dgemm_gpu PRIVATE
       src/gpu_context.cu
       src/basic.cu
-      src/unified.cu
+      src/shared_memory.cu
       src/cublas.cu
   )
 

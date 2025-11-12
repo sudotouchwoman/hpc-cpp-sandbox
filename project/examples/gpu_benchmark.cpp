@@ -70,7 +70,7 @@ struct Implementation {
   lifecycle_func_t setup = nullptr;
   lifecycle_func_t teardown = nullptr;
 
-  mm::impl::gpu::Backend backend = mm::impl::gpu::Backend::Unified;
+  mm::impl::gpu::Backend backend = mm::impl::gpu::Backend::SharedMemory;
 
   Implementation(const std::string& name, const std::string& desc)
       : name(name), description(desc), is_available(false) {}
@@ -116,44 +116,45 @@ BenchmarkResult benchmark_implementation(const Implementation& impl,
   }
 
 #ifdef HAVE_CUDA
-  mm::impl::gpu::DgemmHandle h;
+  return mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
+    h.setup(impl.backend, M, N, K);
+    h.allocateDeviceBuffers();
+    // Upload once, zero C
+    h.uploadAAsync(A.data(), M);
+    h.uploadBAsync(B.data(), K);
+    std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
+                              0.0);
+    h.uploadCAsync(zeros.data(), M);
+    h.synchronize();
 
-  h.setup(impl.backend, M, N, K);
-  h.allocateDeviceBuffers();
-  // Upload once, zero C
-  h.uploadAAsync(A.data(), M);
-  h.uploadBAsync(B.data(), K);
-  std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
-                            0.0);
-  h.uploadCAsync(zeros.data(), M);
-  h.synchronize();
-
-  // Warmup
-  h.execute(1.0, 0.0);
-  h.synchronize();
-
-  // Time only kernel executes
-  cudaEvent_t start, stop;
-  CHECK_CUDA(cudaEventCreate(&start));
-  CHECK_CUDA(cudaEventCreate(&stop));
-  CHECK_CUDA(cudaEventRecord(start, h.stream));
-  for (int i = 0; i < iterations; ++i) {
+    // Warmup
     h.execute(1.0, 0.0);
-  }
-  CHECK_CUDA(cudaEventRecord(stop, h.stream));
-  CHECK_CUDA(cudaEventSynchronize(stop));
-  float ms = 0.0f;
-  CHECK_CUDA(cudaEventElapsedTime(&ms, start, stop));
-  CHECK_CUDA(cudaEventDestroy(start));
-  CHECK_CUDA(cudaEventDestroy(stop));
+    h.synchronize();
 
-  h.teardown();
+    // Time only kernel executes
+    cudaEvent_t start, stop;
+    CHECK_CUDA(cudaEventCreate(&start));
+    CHECK_CUDA(cudaEventCreate(&stop));
+    CHECK_CUDA(cudaEventRecord(start, h.stream()));
+    for (int i = 0; i < iterations; ++i) {
+      h.execute(1.0, 0.0);
+    }
+    CHECK_CUDA(cudaEventRecord(stop, h.stream()));
+    CHECK_CUDA(cudaEventSynchronize(stop));
+    float ms = 0.0f;
+    CHECK_CUDA(cudaEventElapsedTime(&ms, start, stop));
+    CHECK_CUDA(cudaEventDestroy(start));
+    CHECK_CUDA(cudaEventDestroy(stop));
 
-  const auto flops = calculate_flops(M, N, K);
-  const double iter_duration_us =
-      (static_cast<double>(ms) * 1000.0) / iterations;
-  return BenchmarkResult{static_cast<std::uint32_t>(M), flops, iter_duration_us,
-                         calculate_gflops(flops, iter_duration_us)};
+    h.teardown();
+
+    const auto flops = calculate_flops(M, N, K);
+    const double iter_duration_us =
+        (static_cast<double>(ms) * 1000.0) / iterations;
+    return BenchmarkResult{static_cast<std::uint32_t>(M), flops,
+                           iter_duration_us,
+                           calculate_gflops(flops, iter_duration_us)};
+  });
 #else
   (void)A;
   (void)B;
@@ -178,11 +179,18 @@ std::vector<Implementation> get_gpu_implementations() {
     impls.emplace_back(basic);
   }
   {
-    Implementation unified("GPU-Unified",
-                           "Single-stream tiled kernel (unified)", nullptr);
-    unified.is_available = true;
-    unified.backend = mm::impl::gpu::Backend::Unified;
-    impls.emplace_back(unified);
+    Implementation shared_memory("GPU-SharedMemory",
+                           "Single-stream tiled kernel (shared memory)", nullptr);
+    shared_memory.is_available = true;
+    shared_memory.backend = mm::impl::gpu::Backend::SharedMemory;
+    impls.emplace_back(shared_memory);
+  }
+  {
+    Implementation multistream(
+        "GPU-MultiStream", "Multi-stream shared memory kernel (4 streams)", nullptr);
+    multistream.is_available = true;
+    multistream.backend = mm::impl::gpu::Backend::MultiStream;
+    impls.emplace_back(multistream);
   }
   {
     Implementation cublas("GPU-cuBLAS",
@@ -214,22 +222,20 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
     // apply algorithm and verify result
     std::fill(C.begin(), C.end(), 0.0);
-    {
-      mm::impl::gpu::DgemmHandle h;
+    mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
       h.setup(impl.backend, M, N, K);
       h.allocateDeviceBuffers();
       h.uploadAAsync(A.data(), M);
       h.uploadBAsync(B.data(), K);
-      // zero C
       std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
                                 0.0);
       h.uploadCAsync(zeros.data(), M);
       h.execute(1.0, 0.0);
       h.synchronize();
-      h.downloadCAsync(C.data(), M);
+      h.downloadCAsync(C.data());
       h.synchronize();
       h.teardown();
-    }
+    });
 
     BOOST_CHECK_MESSAGE(
         verify_result(A, B, C, M, N, K),

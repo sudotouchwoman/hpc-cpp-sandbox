@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 #include <cassert>
 
-namespace mm::impl::gpu::unified {
+namespace mm::impl::gpu::shared_memory {
 
 // Tiled, shared-memory DGEMM kernel with warp-friendly thread mapping.
 // Column-major inputs/outputs: A[i + k*lda], B[k + j*ldb], C[i + j*ldc]

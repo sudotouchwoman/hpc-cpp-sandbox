@@ -41,9 +41,11 @@ void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
                        double* dC, int ldc, cudaStream_t stream) {
   constexpr int BLOCK_SIZE_M = 8;
   constexpr int BLOCK_SIZE_N = 128;
+
   const dim3 blockDim(BLOCK_SIZE_M, BLOCK_SIZE_N);
   const dim3 gridDim((M + BLOCK_SIZE_M - 1) / BLOCK_SIZE_M,
                      (N + BLOCK_SIZE_N - 1) / BLOCK_SIZE_N);
+
   dgemm_kernel<<<gridDim, blockDim, 0, stream>>>(M, N, K, alpha, dA, lda, dB,
                                                  ldb, beta, dC, ldc);
   CHECK_CUDA(cudaGetLastError());
