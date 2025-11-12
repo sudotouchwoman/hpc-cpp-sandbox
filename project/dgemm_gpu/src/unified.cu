@@ -4,150 +4,123 @@
 
 #include <cuda_runtime.h>
 #include <cassert>
-#include <stdexcept>
 
 namespace mm::impl::gpu::unified {
 
-// CUDA kernel for DGEMM with transposed A matrix
-// Each thread computes one element C[i][j] = beta * C[i][j] + alpha * sum_k(A[i][k] * B[k][j])
-// A is stored transposed: A_transposed[k][i] = A[i][k]
-// This allows coalesced memory access during k-loop iteration
-__global__ void dgemm_kernel(int M, int N, int K, double alpha,
-                              const double* A_transposed, int lda_transposed,
-                              const double* B, int ldb,
-                              double beta, double* C, int ldc) {
-  // Calculate global thread indices
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+// Tiled, shared-memory DGEMM kernel with warp-friendly thread mapping.
+// Column-major inputs/outputs: A[i + k*lda], B[k + j*ldb], C[i + j*ldc]
+// Each block computes a BM x BN tile of C, iterating over K in chunks of BK.
+template <int BM, int BN, int BK>
+__global__ void dgemm_tiled_kernel(int M, int N, int K, double alpha,
+                                   const double* __restrict__ A, int lda,
+                                   const double* __restrict__ B, int ldb,
+                                   double beta, double* __restrict__ C,
+                                   int ldc) {
+  // Threadblock coordinates
+  const int block_i = blockIdx.x * BM;
+  const int block_j = blockIdx.y * BN;
 
-  // Check bounds
-  if (i >= M || j >= N) {
-    return;
+  // Local thread indices
+  const int tx = threadIdx.x;  // 0..(blockDim.x-1), we choose 32
+  const int ty = threadIdx.y;  // 0..(blockDim.y-1), we choose 8
+
+  // Map threads to output rows/cols inside the tile
+  // We will compute multiple columns per thread along N using a stride of blockDim.y
+  const int local_i = tx;  // 0..31
+
+  // Global row index this thread works on
+  const int global_i = block_i + local_i;
+
+  // Shared memory tiles
+  __shared__ double As[BM][BK];
+  __shared__ double Bs[BK][BN];
+
+  // Accumulators for multiple columns per thread
+  // Each thread accumulates for columns: local_j = ty, ty+blockDim.y, ...
+  double acc[BN / 8];  // with BN=64 and blockDim.y=8 -> 8 accumulators
+#pragma unroll
+  for (int t = 0; t < (BN / 8); ++t) {
+    acc[t] = 0.0;
   }
 
-  // Compute dot product: sum_k(A[i][k] * B[k][j])
-  // A is stored transposed: A_transposed[k][i] = A[i][k]
-  // In column-major format:
-  // A_transposed[k][i] is at A_transposed[k + i * lda_transposed] = A_transposed[k + i * K]
-  // B[k][j] is at B[k + j * ldb]
-  // During k-loop, threads access consecutive memory locations (coalesced access)
-  double sum = 0.0;
-  for (int k = 0; k < K; ++k) {
-    sum += A_transposed[k + i * lda_transposed] * B[k + j * ldb];
+  // Loop over K dimension in tiles of BK
+  for (int k0 = 0; k0 < K; k0 += BK) {
+    // Cooperative load of A tile (BM x BK)
+    // For coalescing: threads of a warp share the same (ty, kk) and vary tx across i
+    for (int kk = ty; kk < BK; kk += blockDim.y) {
+      const int gk = k0 + kk;
+      if (global_i < M && gk < K) {
+        As[local_i][kk] = A[global_i + gk * lda];
+      } else {
+        As[local_i][kk] = 0.0;
+      }
+    }
+
+    // Cooperative load of B tile (BK x BN)
+    // For coalescing: use tx across k (contiguous in B), and stride ty across columns
+    for (int kk = tx; kk < BK; kk += blockDim.x) {
+      const int gk = k0 + kk;
+      // Each thread loads multiple columns separated by blockDim.y
+      for (int jstep = ty; jstep < BN; jstep += blockDim.y) {
+        const int gj = block_j + jstep;
+        if (gk < K && gj < N) {
+          Bs[kk][jstep] = B[gk + gj * ldb];
+        } else {
+          Bs[kk][jstep] = 0.0;
+        }
+      }
+    }
+
+    __syncthreads();
+
+    // Compute on the loaded tiles
+    if (global_i < M) {
+      // For each of the BN columns handled by this thread via stride on ty
+#pragma unroll
+      for (int jpack = 0; jpack < (BN / 8); ++jpack) {
+        // Map j index for this pack
+        const int local_j = ty + jpack * blockDim.y;  // 0..BN-1
+        double sum = acc[jpack];
+#pragma unroll
+        for (int kk = 0; kk < BK; ++kk) {
+          sum += As[local_i][kk] * Bs[kk][local_j];
+        }
+        acc[jpack] = sum;
+      }
+    }
+
+    __syncthreads();
   }
 
-  // Compute final result: C[i][j] = beta * C[i][j] + alpha * sum
-  // C[i][j] is at C[i + j * ldc] in column-major format
-  const int c_idx = i + j * ldc;
-  C[c_idx] = beta * C[c_idx] + alpha * sum;
+  // Write back results with alpha/beta
+  if (global_i < M) {
+#pragma unroll
+    for (int jpack = 0; jpack < (BN / 8); ++jpack) {
+      const int local_j = ty + jpack * blockDim.y;
+      const int global_j = block_j + local_j;
+      if (global_j < N) {
+        const int c_idx = global_i + global_j * ldc;
+        C[c_idx] = beta * C[c_idx] + alpha * acc[jpack];
+      }
+    }
+  }
 }
 
-// Helper function to check CUDA errors
-static void check_cuda_error(cudaError_t err, const char* file, int line) {
-  if (err != cudaSuccess) {
-    throw std::runtime_error(
-        std::string("CUDA error at ") + file + ":" + std::to_string(line) +
-        ": " + cudaGetErrorString(err));
-  }
-}
-
-#define CHECK_CUDA(err) check_cuda_error(err, __FILE__, __LINE__)
-
-void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-                const double* B, int ldb, double beta, double* C, int ldc) {
-  // Allocate unified memory for matrices
-  // Unified memory is accessible from both host and device
-  double* A_unified = nullptr;
-  double* B_unified = nullptr;
-  double* C_unified = nullptr;
-
-  // A will be stored transposed: M×K becomes K×M
-  CHECK_CUDA(cudaMallocManaged(&A_unified, K * M * sizeof(double)));
-  CHECK_CUDA(cudaMallocManaged(&B_unified, K * N * sizeof(double)));
-  CHECK_CUDA(cudaMallocManaged(&C_unified, M * N * sizeof(double)));
-
-  // Copy and transpose A: A_transposed[k][i] = A[i][k]
-  // In column-major: A[i][k] is at A[i + k * lda]
-  //                  A_transposed[k][i] is at A_unified[k + i * K]
-  for (int i = 0; i < M; ++i) {
-    for (int k = 0; k < K; ++k) {
-      A_unified[k + i * K] = A[i + k * lda];
-    }
-  }
-
-  // Copy B with leading dimension ldb
-  for (int j = 0; j < N; ++j) {
-    for (int k = 0; k < K; ++k) {
-      B_unified[k + j * K] = B[k + j * ldb];
-    }
-  }
-
-  // Copy C with leading dimension ldc
-  for (int j = 0; j < N; ++j) {
-    for (int i = 0; i < M; ++i) {
-      C_unified[i + j * M] = C[i + j * ldc];
-    }
-  }
-
-  // Prefetch unified memory to the active device before launching the kernel
-  int device = -1;
-  CHECK_CUDA(cudaGetDevice(&device));
-
-  const size_t bytes_A = static_cast<size_t>(K) * static_cast<size_t>(M) * sizeof(double);
-  const size_t bytes_B = static_cast<size_t>(K) * static_cast<size_t>(N) * sizeof(double);
-  const size_t bytes_C = static_cast<size_t>(M) * static_cast<size_t>(N) * sizeof(double);
-
-  CHECK_CUDA(cudaMemPrefetchAsync(A_unified, bytes_A, device, /*stream*/ 0));
-  CHECK_CUDA(cudaMemPrefetchAsync(B_unified, bytes_B, device, /*stream*/ 0));
-  CHECK_CUDA(cudaMemPrefetchAsync(C_unified, bytes_C, device, /*stream*/ 0));
-  CHECK_CUDA(cudaDeviceSynchronize());
-
-  // Configure kernel launch parameters
-  // Use 4x64 thread blocks (256 threads per block)
-  constexpr int BLOCK_SIZE_M = 4;
-  constexpr int BLOCK_SIZE_N = 64;
-
-  const dim3 blockDim(BLOCK_SIZE_M, BLOCK_SIZE_N);
-  const dim3 gridDim((M + BLOCK_SIZE_M - 1) / BLOCK_SIZE_M,
-               (N + BLOCK_SIZE_N - 1) / BLOCK_SIZE_N);
-
-  // Launch kernel
-  // A_unified is stored as K×M (transposed), so leading dimension is K
-  // B_unified is stored as K×N, so leading dimension is K
-  // C_unified is stored as M×N, so leading dimension is M
-  dgemm_kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A_unified, K, B_unified, K,
-                                      beta, C_unified, M);
-
-  // Check for kernel launch errors
+void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
+                       int lda, const double* dB, int ldb, double beta,
+                       double* dC, int ldc, cudaStream_t stream) {
+  // Tile sizes and launch dims
+  constexpr int BM = 32;
+  constexpr int BN = 64;
+  constexpr int BK = 8;
+  const dim3 blockDim(32, 8);
+  const dim3 gridDim((M + BM - 1) / BM, (N + BN - 1) / BN);
+  dgemm_tiled_kernel<BM, BN, BK>
+      <<<gridDim, blockDim, 0, stream>>>(M, N, K, alpha, dA, lda, dB, ldb,
+                                         beta, dC, ldc);
   CHECK_CUDA(cudaGetLastError());
-
-  // Wait for kernel to complete
-  // Unified memory requires synchronization to ensure data is available
-  CHECK_CUDA(cudaDeviceSynchronize());
-
-  // Prefetch result back to CPU to avoid on-demand migration during host copy-out
-  CHECK_CUDA(cudaMemPrefetchAsync(C_unified, bytes_C, cudaCpuDeviceId, /*stream*/ 0));
-  CHECK_CUDA(cudaDeviceSynchronize());
-
-  // Copy result back from unified memory to output matrix with proper leading dimension
-  for (int j = 0; j < N; ++j) {
-    for (int i = 0; i < M; ++i) {
-      C[i + j * ldc] = C_unified[i + j * M];
-    }
-  }
-
-  // Free unified memory
-  CHECK_CUDA(cudaFree(A_unified));
-  CHECK_CUDA(cudaFree(B_unified));
-  CHECK_CUDA(cudaFree(C_unified));
-}
-
-void dgemm(int M, int N, int K, const double* A, const double* B, double* C) {
-  // Simplified interface: C = A * B (assuming leading dimensions are M and K)
-  dgemm_impl(M, N, K, 1.0, A, M, B, K, 0.0, C, M);
 }
 
 }  // namespace mm::impl::gpu::unified
 
 #endif  // HAVE_CUDA
-

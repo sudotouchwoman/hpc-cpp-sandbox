@@ -7,8 +7,10 @@ if(CUDAToolkit_FOUND)
 
   # Set source files
   target_sources(dgemm_gpu PRIVATE
+      src/gpu_context.cu
       src/basic.cu
       src/unified.cu
+      src/cublas.cu
   )
 
   # Set include directories - PUBLIC makes them available to
@@ -23,8 +25,8 @@ if(CUDAToolkit_FOUND)
       CUDA_RESOLVE_DEVICE_SYMBOLS ON
   )
 
-  # Link against CUDA runtime
-  target_link_libraries(dgemm_gpu PUBLIC CUDA::cudart)
+  # Link against CUDA runtime and cuBLAS
+  target_link_libraries(dgemm_gpu PUBLIC CUDA::cudart CUDA::cublas)
 
   # Add compile definition to indicate CUDA is available
   target_compile_definitions(dgemm_gpu PUBLIC HAVE_CUDA)

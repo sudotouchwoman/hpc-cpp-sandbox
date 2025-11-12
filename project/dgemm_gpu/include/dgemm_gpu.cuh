@@ -2,6 +2,10 @@
 
 #ifdef HAVE_CUDA
 
+#include <cuda_runtime.h>
+#include <stdexcept>
+#include <string>
+
 namespace mm {
 
 /**
@@ -16,61 +20,95 @@ namespace mm {
 namespace impl {
 namespace gpu {
 
-namespace basic {
+enum class Backend { Basic, Unified, CuBLAS };
+
+namespace detail {
 /**
- * @brief Basic CUDA DGEMM implementation using pinned memory
+ * @brief Helper function to check CUDA errors
  * 
- * @param M Number of rows in A and C
- * @param N Number of columns in B and C  
- * @param K Number of columns in A and rows in B
- * @param alpha Scalar multiplier for A*B
- * @param A Input matrix A (M x K, column-major)
- * @param lda Leading dimension of A
- * @param B Input matrix B (K x N, column-major)
- * @param ldb Leading dimension of B
- * @param beta Scalar multiplier for C
- * @param C Input/output matrix C (M x N, column-major)
- * @param ldc Leading dimension of C
+ * @param err CUDA error code
+ * @param file Source file name
+ * @param line Line number
+ * @throws std::runtime_error if CUDA error occurred
  */
-void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-                const double* B, int ldb, double beta, double* C, int ldc);
+inline void check_cuda_error(cudaError_t err, const char* file, int line) {
+  if (err != cudaSuccess) {
+    throw std::runtime_error(
+        std::string("CUDA error at ") + file + ":" + std::to_string(line) +
+        ": " + cudaGetErrorString(err));
+  }
+}
+
+}  // namespace detail
+
+#define CHECK_CUDA(err) mm::impl::gpu::detail::check_cuda_error(err, __FILE__, __LINE__)
 
 /**
- * @brief Simplified DGEMM interface
+ * @brief OO handle that orchestrates allocations, transfers, and kernel execution.
+ * 
+ * Zero-value is valid. Kernels operate on device pointers only.
  */
-void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+struct GpuDgemmHandle {
+  int M = 0;
+  int N = 0;
+  int K = 0;
+  int lda = 0;
+  int ldb = 0;
+  int ldc = 0;
+  double* dA = nullptr;
+  double* dB = nullptr;
+  double* dC = nullptr;
+  cudaStream_t stream = nullptr;
+  Backend backend = Backend::Unified;
+
+  // Lifecycle
+  void setup(Backend backend_kind, int m, int n, int k);
+  void teardown();
+
+  // Stream control
+  void setStream(cudaStream_t s);
+  void synchronize() const;
+
+  // Buffers
+  void allocateDeviceBuffers();
+  void setDeviceBuffers(double* deviceA, double* deviceB, double* deviceC);
+
+  // Transfers (async)
+  void uploadAAsync(const double* A_host, int lda_host);
+  void uploadBAsync(const double* B_host, int ldb_host);
+  void uploadCAsync(const double* C_host, int ldc_host);
+  void downloadCAsync(double* C_host, int ldc_host) const;
+
+  // Execute (device-pointer kernels)
+  void execute(double alpha, double beta) const;
+};
+
+namespace basic {
+/**
+ * @brief Device-pointer variant: executes kernel on provided device buffers.
+ */
+void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
+                       int lda, const double* dB, int ldb, double beta,
+                       double* dC, int ldc, cudaStream_t stream);
 }  // namespace basic
 
 namespace unified {
 /**
- * @brief CUDA DGEMM implementation using unified memory with A matrix transpose
- * 
- * This implementation uses CUDA unified memory (cudaMallocManaged) which eliminates
- * the need for explicit host-to-device and device-to-host memory copies. The A matrix
- * is transposed during setup to optimize memory access patterns: storing A^T ensures
- * coalesced memory access during the k-loop iteration in the kernel, improving memory
- * bandwidth utilization.
- * 
- * @param M Number of rows in A and C
- * @param N Number of columns in B and C  
- * @param K Number of columns in A and rows in B
- * @param alpha Scalar multiplier for A*B
- * @param A Input matrix A (M x K, column-major)
- * @param lda Leading dimension of A
- * @param B Input matrix B (K x N, column-major)
- * @param ldb Leading dimension of B
- * @param beta Scalar multiplier for C
- * @param C Input/output matrix C (M x N, column-major)
- * @param ldc Leading dimension of C
+ * @brief Device-pointer variant: executes kernel on provided device buffers.
  */
-void dgemm_impl(int M, int N, int K, double alpha, const double* A, int lda,
-                const double* B, int ldb, double beta, double* C, int ldc);
-
-/**
- * @brief Simplified DGEMM interface
- */
-void dgemm(int M, int N, int K, const double* A, const double* B, double* C);
+void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
+                       int lda, const double* dB, int ldb, double beta,
+                       double* dC, int ldc, cudaStream_t stream);
 }  // namespace unified
+
+namespace cublas {
+/**
+ * @brief Device-pointer variant: executes cuBLAS on provided device buffers.
+ */
+void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
+                       int lda, const double* dB, int ldb, double beta,
+                       double* dC, int ldc, cudaStream_t stream);
+}  // namespace cublas
 
 }  // namespace gpu
 }  // namespace impl

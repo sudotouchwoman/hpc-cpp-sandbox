@@ -1,6 +1,5 @@
 #include <boost/test/tools/output_test_stream.hpp>
 #include <boost/test/unit_test.hpp>
-#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <iomanip>
@@ -11,7 +10,10 @@
 #include <vector>
 
 #ifdef HAVE_CUDA
+#include <cuda_runtime.h>
 #include "dgemm_gpu.cuh"
+#define CHECK_CUDA(err) \
+  mm::impl::gpu::detail::check_cuda_error(err, __FILE__, __LINE__)
 #endif
 
 // Helper function to generate random matrix
@@ -68,6 +70,8 @@ struct Implementation {
   lifecycle_func_t setup = nullptr;
   lifecycle_func_t teardown = nullptr;
 
+  mm::impl::gpu::Backend backend = mm::impl::gpu::Backend::Unified;
+
   Implementation(const std::string& name, const std::string& desc)
       : name(name), description(desc), is_available(false) {}
 
@@ -111,66 +115,87 @@ BenchmarkResult benchmark_implementation(const Implementation& impl,
     return BenchmarkResult();
   }
 
-  impl.setup();
+#ifdef HAVE_CUDA
+  mm::impl::gpu::GpuDgemmHandle h;
 
-  const auto start = std::chrono::high_resolution_clock::now();
+  h.setup(impl.backend, M, N, K);
+  h.allocateDeviceBuffers();
+  // Upload once, zero C
+  h.uploadAAsync(A.data(), M);
+  h.uploadBAsync(B.data(), K);
+  std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
+                            0.0);
+  h.uploadCAsync(zeros.data(), M);
+  h.synchronize();
 
+  // Warmup
+  h.execute(1.0, 0.0);
+  h.synchronize();
+
+  // Time only kernel executes
+  cudaEvent_t start, stop;
+  CHECK_CUDA(cudaEventCreate(&start));
+  CHECK_CUDA(cudaEventCreate(&stop));
+  CHECK_CUDA(cudaEventRecord(start, h.stream));
   for (int i = 0; i < iterations; ++i) {
-    impl.f(M, N, K, A.data(), B.data(), C.data());
+    h.execute(1.0, 0.0);
   }
+  CHECK_CUDA(cudaEventRecord(stop, h.stream));
+  CHECK_CUDA(cudaEventSynchronize(stop));
+  float ms = 0.0f;
+  CHECK_CUDA(cudaEventElapsedTime(&ms, start, stop));
+  CHECK_CUDA(cudaEventDestroy(start));
+  CHECK_CUDA(cudaEventDestroy(stop));
 
-  const auto end = std::chrono::high_resolution_clock::now();
-  const auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(end - start)
-          .count();
-
-  const auto iter_duration_us =
-      static_cast<double>(duration) / static_cast<double>(iterations);
-
-  impl.teardown();
+  h.teardown();
 
   const auto flops = calculate_flops(M, N, K);
-
-  return BenchmarkResult{
-      static_cast<std::uint32_t>(M),
-      flops,
-      iter_duration_us,
-      calculate_gflops(flops, iter_duration_us),
-  };
+  const double iter_duration_us =
+      (static_cast<double>(ms) * 1000.0) / iterations;
+  return BenchmarkResult{static_cast<std::uint32_t>(M), flops, iter_duration_us,
+                         calculate_gflops(flops, iter_duration_us)};
+#else
+  (void)A;
+  (void)B;
+  (void)C;
+  (void)M;
+  (void)N;
+  (void)K;
+  (void)iterations;
+  return BenchmarkResult();
+#endif
 }
 
 std::vector<Implementation> get_gpu_implementations() {
   std::vector<Implementation> impls;
 
 #ifdef HAVE_CUDA
-  impls.emplace_back("GPU-Basic",
-                     "CUDA basic implementation with pinned memory",
-                     mm::impl::gpu::basic::dgemm);
-  impls.emplace_back("GPU-Unified", "CUDA unified memory with A transpose",
-                     mm::impl::gpu::unified::dgemm);
+  {
+    Implementation basic(
+        "GPU-Basic", "Single-stream device-pointer kernel (basic)", nullptr);
+    basic.is_available = true;
+    basic.backend = mm::impl::gpu::Backend::Basic;
+    impls.emplace_back(basic);
+  }
+  {
+    Implementation unified("GPU-Unified",
+                           "Single-stream tiled kernel (unified)", nullptr);
+    unified.is_available = true;
+    unified.backend = mm::impl::gpu::Backend::Unified;
+    impls.emplace_back(unified);
+  }
+  {
+    Implementation cublas("GPU-cuBLAS",
+                          "NVIDIA cuBLAS optimized implementation", nullptr);
+    cublas.is_available = true;
+    cublas.backend = mm::impl::gpu::Backend::CuBLAS;
+    impls.emplace_back(cublas);
+  }
 #else
   // If CUDA is not available, return empty list
 #endif
 
   return impls;
-}
-
-BOOST_AUTO_TEST_CASE(sanity_check) {
-#ifdef HAVE_CUDA
-  constexpr int M = 3, K = 3, N = 2;
-  std::vector<double> A = {5, 6, 4, 8, 9, 7, -4, -5, -2};
-  std::vector<double> B = {2, -3, 1, 3, -5, 2};
-  std::vector<double> C(M * N);
-  std::vector<double> expected = {-18, -20, -15, -33, -37, -27};
-
-  // Test GPU implementation
-  mm::impl::gpu::basic::dgemm(M, N, K, A.data(), B.data(), C.data());
-
-  BOOST_CHECK_EQUAL_COLLECTIONS(C.begin(), C.end(), expected.begin(),
-                                expected.end());
-#else
-  BOOST_TEST_MESSAGE("CUDA not available - skipping GPU sanity check");
-#endif
 }
 
 BOOST_AUTO_TEST_CASE(correctness_test) {
@@ -189,7 +214,22 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
     // apply algorithm and verify result
     std::fill(C.begin(), C.end(), 0.0);
-    impl.f(M, N, K, A.data(), B.data(), C.data());
+    {
+      mm::impl::gpu::GpuDgemmHandle h;
+      h.setup(impl.backend, M, N, K);
+      h.allocateDeviceBuffers();
+      h.uploadAAsync(A.data(), M);
+      h.uploadBAsync(B.data(), K);
+      // zero C
+      std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
+                                0.0);
+      h.uploadCAsync(zeros.data(), M);
+      h.execute(1.0, 0.0);
+      h.synchronize();
+      h.downloadCAsync(C.data(), M);
+      h.synchronize();
+      h.teardown();
+    }
 
     BOOST_CHECK_MESSAGE(
         verify_result(A, B, C, M, N, K),
@@ -202,11 +242,11 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
 
 BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
 #ifdef HAVE_CUDA
-  constexpr int num_iterations = 50;
+  constexpr int num_iterations = 20;
 
   const auto implementations = get_gpu_implementations();
-  const std::vector<int> sizes = {32,  64,  128,  256,  382,  400,  512,
-                                  760, 800, 1024, 1500, 2048};
+  const std::vector<int> sizes = {32,  64,  128, 256,  382,  400,
+                                  512, 760, 800, 1024, 1500, 2048};
 
   // header
   std::cout << "\n=== GPU DGEMM Performance Benchmark ===\n";
