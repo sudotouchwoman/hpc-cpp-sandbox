@@ -20,32 +20,14 @@ static void check_cublas_error(cublasStatus_t status, const char* file,
 
 #define CHECK_CUBLAS(err) check_cublas_error(err, __FILE__, __LINE__)
 
-// Static cuBLAS handle - initialized on first use
-static cublasHandle_t cublas_handle = nullptr;
-
-static void init_cublas_handle() {
-  if (cublas_handle == nullptr) {
-    CHECK_CUBLAS(cublasCreate(&cublas_handle));
-  }
-}
-
-static void destroy_cublas_handle() {
-  if (cublas_handle != nullptr) {
-    CHECK_CUBLAS(cublasDestroy(cublas_handle));
-    cublas_handle = nullptr;
-  }
-}
-
-void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
-                       int lda, const double* dB, int ldb, double beta,
-                       double* dC, int ldc, cudaStream_t stream) {
-  init_cublas_handle();
-  CHECK_CUBLAS(cublasSetStream(cublas_handle, stream));
-  CHECK_CUBLAS(cublasDgemm(cublas_handle,
+void dgemm_impl_device(cublasHandle_t handle, int M, int N, int K, double alpha,
+                       const double* dA, int lda, const double* dB, int ldb,
+                       double beta, double* dC, int ldc, cudaStream_t stream) {
+  CHECK_CUBLAS(cublasSetStream(handle, stream));
+  CHECK_CUBLAS(cublasDgemm(handle,
                            CUBLAS_OP_N,  // op(A) = A
                            CUBLAS_OP_N,  // op(B) = B
                            M, N, K, &alpha, dA, lda, dB, ldb, &beta, dC, ldc));
-  destroy_cublas_handle();
 }
 
 }  // namespace mm::impl::gpu::cublas

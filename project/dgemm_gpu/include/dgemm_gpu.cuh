@@ -6,6 +6,10 @@
 #include <stdexcept>
 #include <string>
 
+// Forward declare cuBLAS handle without requiring global include here
+struct cublasContext;
+using cublasHandle_t = cublasContext*;
+
 namespace mm {
 
 /**
@@ -48,7 +52,7 @@ inline void check_cuda_error(cudaError_t err, const char* file, int line) {
  * 
  * Zero-value is valid. Kernels operate on device pointers only.
  */
-struct GpuDgemmHandle {
+struct DgemmHandle {
   int M = 0;
   int N = 0;
   int K = 0;
@@ -60,6 +64,7 @@ struct GpuDgemmHandle {
   double* dC = nullptr;
   cudaStream_t stream = nullptr;
   Backend backend = Backend::Unified;
+  cublasHandle_t cublas = nullptr;  // only used when backend == CuBLAS
 
   // Lifecycle
   void setup(Backend backend_kind, int m, int n, int k);
@@ -105,9 +110,9 @@ namespace cublas {
 /**
  * @brief Device-pointer variant: executes cuBLAS on provided device buffers.
  */
-void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
-                       int lda, const double* dB, int ldb, double beta,
-                       double* dC, int ldc, cudaStream_t stream);
+void dgemm_impl_device(cublasHandle_t handle, int M, int N, int K, double alpha,
+                       const double* dA, int lda, const double* dB, int ldb,
+                       double beta, double* dC, int ldc, cudaStream_t stream);
 }  // namespace cublas
 
 }  // namespace gpu

@@ -116,7 +116,7 @@ BenchmarkResult benchmark_implementation(const Implementation& impl,
   }
 
 #ifdef HAVE_CUDA
-  mm::impl::gpu::GpuDgemmHandle h;
+  mm::impl::gpu::DgemmHandle h;
 
   h.setup(impl.backend, M, N, K);
   h.allocateDeviceBuffers();
@@ -215,7 +215,7 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
     // apply algorithm and verify result
     std::fill(C.begin(), C.end(), 0.0);
     {
-      mm::impl::gpu::GpuDgemmHandle h;
+      mm::impl::gpu::DgemmHandle h;
       h.setup(impl.backend, M, N, K);
       h.allocateDeviceBuffers();
       h.uploadAAsync(A.data(), M);
@@ -245,8 +245,8 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
   constexpr int num_iterations = 20;
 
   const auto implementations = get_gpu_implementations();
-  const std::vector<int> sizes = {32,  64,  128, 256,  382,  400,
-                                  512, 760, 800, 1024, 1500, 2048};
+  const std::vector<int> sizes = {256, 382,  400,  512,  760,
+                                  800, 1024, 1500, 2048, 4096};
 
   // header
   std::cout << "\n=== GPU DGEMM Performance Benchmark ===\n";

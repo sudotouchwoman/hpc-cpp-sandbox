@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.27)
 
 project(cpp-concurrency-stuff VERSION 1.0.1 LANGUAGES CXX)
 
@@ -21,8 +21,6 @@ endif()
 
 set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-# override as needed for your device compute capability
-set(CMAKE_CUDA_ARCHITECTURES 90;120)
 set(CMAKE_CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 set(CMAKE_CUDA_RUNTIME_LIBRARY Shared)
 
