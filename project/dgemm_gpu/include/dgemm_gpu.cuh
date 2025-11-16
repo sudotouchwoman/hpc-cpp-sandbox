@@ -25,7 +25,7 @@ namespace mm {
 namespace impl {
 namespace gpu {
 
-enum class Backend { Basic, SharedMemory, CuBLAS, MultiStream };
+enum class Backend { Basic, SharedMemory, CuBLAS, MultiStream, RegisterTiled };
 
 namespace detail {
 /**
@@ -106,6 +106,19 @@ struct BasicEngine {
  * Stateless engine that executes unified DGEMM kernel.
  */
 struct SharedMemoryEngine {
+  void setup(cudaStream_t stream);
+  void teardown();
+  void synchronize(const DgemmBufferManager& buffers) const;
+  void execute(const DgemmBufferManager& buffers, double alpha,
+               double beta) const;
+};
+
+/**
+ * @brief Execution engine for register-tiled shared-memory kernel.
+ * 
+ * Stateless engine that executes register-tiled DGEMM kernel.
+ */
+struct RegisterTiledEngine {
   void setup(cudaStream_t stream);
   void teardown();
   void synchronize(const DgemmBufferManager& buffers) const;
@@ -201,6 +214,7 @@ using DgemmHandleBasic = DgemmHandleImpl<BasicEngine>;
 using DgemmHandleSharedMemory = DgemmHandleImpl<SharedMemoryEngine>;
 using DgemmHandleCuBLAS = DgemmHandleImpl<CuBLASEngine>;
 using DgemmHandleMultiStream = DgemmHandleImpl<MultiStreamEngine<SharedMemoryEngine>>;
+using DgemmHandleRegisterTiled = DgemmHandleImpl<RegisterTiledEngine>;
 
 /**
  * @brief Factory function to create a handle based on backend type.
@@ -227,6 +241,10 @@ auto with_handle(Backend backend, F&& func) {
       DgemmHandleMultiStream h;
       return func(h);
     }
+    case Backend::RegisterTiled: {
+      DgemmHandleRegisterTiled h;
+      return func(h);
+    }
   }
   throw std::runtime_error("Invalid backend type");
 }
@@ -248,6 +266,15 @@ void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
                        int lda, const double* dB, int ldb, double beta,
                        double* dC, int ldc, cudaStream_t stream);
 }  // namespace shared_memory
+
+namespace register_tiled {
+/**
+ * @brief Device-pointer variant: executes kernel on provided device buffers.
+ */
+void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
+                       int lda, const double* dB, int ldb, double beta,
+                       double* dC, int ldc, cudaStream_t stream);
+}  // namespace register_tiled
 
 namespace cublas {
 /**

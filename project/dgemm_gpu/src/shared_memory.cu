@@ -68,14 +68,14 @@ __global__ void dgemm_tiled_kernel(int M, int N, int K, double alpha,
 
     if (global_i < M) {
 #pragma unroll
-      for (int jpack = 0; jpack < COLS_PER_THREAD; ++jpack) {
-        const int local_j = ty + jpack * THREADS_Y;
-        double sum = acc[jpack];
+      for (int t = 0; t < COLS_PER_THREAD; ++t) {
+        const int local_j = ty + t * THREADS_Y;
+        double sum = acc[t];
 #pragma unroll
         for (int kk = 0; kk < TILE_K; ++kk) {
           sum += As[local_i][kk] * Bs[kk][local_j];
         }
-        acc[jpack] = sum;
+        acc[t] = sum;
       }
     }
 
@@ -84,12 +84,12 @@ __global__ void dgemm_tiled_kernel(int M, int N, int K, double alpha,
 
   if (global_i < M) {
 #pragma unroll
-    for (int jpack = 0; jpack < COLS_PER_THREAD; ++jpack) {
-      const int local_j = ty + jpack * THREADS_Y;
+    for (int t = 0; t < COLS_PER_THREAD; ++t) {
+      const int local_j = ty + t * THREADS_Y;
       const int global_j = block_j + local_j;
       if (global_j < N) {
         const int c_idx = global_i + global_j * ldc;
-        C[c_idx] = beta * C[c_idx] + alpha * acc[jpack];
+        C[c_idx] = beta * C[c_idx] + alpha * acc[t];
       }
     }
   }

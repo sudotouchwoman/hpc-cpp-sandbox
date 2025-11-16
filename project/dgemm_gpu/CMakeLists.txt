@@ -11,6 +11,7 @@ if(CUDAToolkit_FOUND)
       src/basic.cu
       src/shared_memory.cu
       src/cublas.cu
+      src/register_tiled.cu
   )
 
   # Set include directories - PUBLIC makes them available to

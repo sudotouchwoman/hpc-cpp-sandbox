@@ -9,12 +9,8 @@
 #include <string>
 #include <vector>
 
-#ifdef HAVE_CUDA
 #include <cuda_runtime.h>
 #include "dgemm_gpu.cuh"
-#define CHECK_CUDA(err) \
-  mm::impl::gpu::detail::check_cuda_error(err, __FILE__, __LINE__)
-#endif
 
 // Helper function to generate random matrix
 std::vector<double> generate_random_matrix(int rows, int cols) {
@@ -65,7 +61,6 @@ struct Implementation {
   std::string name;
   std::string description;
   func_t f;
-  bool is_available;
 
   lifecycle_func_t setup = nullptr;
   lifecycle_func_t teardown = nullptr;
@@ -73,17 +68,12 @@ struct Implementation {
   mm::impl::gpu::Backend backend = mm::impl::gpu::Backend::SharedMemory;
 
   Implementation(const std::string& name, const std::string& desc)
-      : name(name), description(desc), is_available(false) {}
+      : name(name), description(desc) {}
 
   Implementation(
       const std::string& name, const std::string& desc, func_t f,
       lifecycle_func_t setup = []() {}, lifecycle_func_t teardown = []() {})
-      : name(name),
-        description(desc),
-        f(f),
-        is_available(true),
-        setup(setup),
-        teardown(teardown) {}
+      : name(name), description(desc), f(f), setup(setup), teardown(teardown) {}
 };
 
 struct BenchmarkResult {
@@ -110,12 +100,6 @@ BenchmarkResult benchmark_implementation(const Implementation& impl,
                                          const std::vector<double>& B,
                                          std::vector<double>& C, int M, int N,
                                          int K, int iterations = 10) {
-
-  if (!impl.is_available) {
-    return BenchmarkResult();
-  }
-
-#ifdef HAVE_CUDA
   return mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
     h.setup(impl.backend, M, N, K);
     h.allocateDeviceBuffers();
@@ -155,16 +139,6 @@ BenchmarkResult benchmark_implementation(const Implementation& impl,
                            iter_duration_us,
                            calculate_gflops(flops, iter_duration_us)};
   });
-#else
-  (void)A;
-  (void)B;
-  (void)C;
-  (void)M;
-  (void)N;
-  (void)K;
-  (void)iterations;
-  return BenchmarkResult();
-#endif
 }
 
 std::vector<Implementation> get_gpu_implementations() {
@@ -174,28 +148,33 @@ std::vector<Implementation> get_gpu_implementations() {
   {
     Implementation basic(
         "GPU-Basic", "Single-stream device-pointer kernel (basic)", nullptr);
-    basic.is_available = true;
     basic.backend = mm::impl::gpu::Backend::Basic;
     impls.emplace_back(basic);
   }
   {
     Implementation shared_memory("GPU-SharedMemory",
-                           "Single-stream tiled kernel (shared memory)", nullptr);
-    shared_memory.is_available = true;
+                                 "Single-stream tiled kernel (shared memory)",
+                                 nullptr);
     shared_memory.backend = mm::impl::gpu::Backend::SharedMemory;
     impls.emplace_back(shared_memory);
   }
   {
-    Implementation multistream(
-        "GPU-MultiStream", "Multi-stream shared memory kernel (4 streams)", nullptr);
-    multistream.is_available = true;
+    Implementation multistream("GPU-MultiStream",
+                               "Multi-stream shared memory kernel (4 streams)",
+                               nullptr);
     multistream.backend = mm::impl::gpu::Backend::MultiStream;
     impls.emplace_back(multistream);
   }
   {
+    Implementation reg_tiled("GPU-RegisterTiled",
+                             "High-intensity tiled/register-tiled kernel",
+                             nullptr);
+    reg_tiled.backend = mm::impl::gpu::Backend::RegisterTiled;
+    impls.emplace_back(reg_tiled);
+  }
+  {
     Implementation cublas("GPU-cuBLAS",
                           "NVIDIA cuBLAS optimized implementation", nullptr);
-    cublas.is_available = true;
     cublas.backend = mm::impl::gpu::Backend::CuBLAS;
     impls.emplace_back(cublas);
   }
@@ -217,9 +196,6 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
   const auto implementations = get_gpu_implementations();
 
   for (const auto& impl : implementations) {
-    if (!impl.is_available)
-      continue;
-
     // apply algorithm and verify result
     std::fill(C.begin(), C.end(), 0.0);
     mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
@@ -259,9 +235,7 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
   std::cout << std::setw(10) << "Size";
 
   for (const auto& impl : implementations) {
-    if (impl.is_available) {
-      std::cout << " |" << std::setw(22) << impl.name;
-    }
+    std::cout << " |" << std::setw(22) << impl.name;
   }
 
   std::cout << std::endl;
@@ -280,9 +254,6 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
 
     // benchmark each implementation
     for (const auto& impl : implementations) {
-      if (!impl.is_available)
-        continue;
-
       std::fill(C.begin(), C.end(), 0.0);
       const auto result = benchmark_implementation(impl, A, B, C, size, size,
                                                    size, num_iterations);

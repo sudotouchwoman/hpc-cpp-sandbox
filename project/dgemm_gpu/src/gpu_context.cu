@@ -138,6 +138,25 @@ void SharedMemoryEngine::execute(const DgemmBufferManager& buffers,
       buffers.dB, buffers.ldb, beta, buffers.dC, buffers.ldc, buffers.stream);
 }
 
+void RegisterTiledEngine::setup(cudaStream_t stream) {
+  (void)stream;  // Stateless
+}
+
+void RegisterTiledEngine::teardown() {
+  // Stateless
+}
+
+void RegisterTiledEngine::synchronize(const DgemmBufferManager& buffers) const {
+  buffers.synchronize();
+}
+
+void RegisterTiledEngine::execute(const DgemmBufferManager& buffers,
+                                  double alpha, double beta) const {
+  register_tiled::dgemm_impl_device(
+      buffers.M, buffers.N, buffers.K, alpha, buffers.dA, buffers.lda,
+      buffers.dB, buffers.ldb, beta, buffers.dC, buffers.ldc, buffers.stream);
+}
+
 void CuBLASEngine::setup(cudaStream_t stream) {
   this->stream = stream;
   const auto status = cublasCreate(&cublas);
@@ -350,6 +369,7 @@ template struct DgemmHandleImpl<BasicEngine>;
 template struct DgemmHandleImpl<SharedMemoryEngine>;
 template struct DgemmHandleImpl<CuBLASEngine>;
 template struct DgemmHandleImpl<MultiStreamEngine<SharedMemoryEngine, 4>>;
+template struct DgemmHandleImpl<RegisterTiledEngine>;
 
 }  // namespace mm::impl::gpu
 
