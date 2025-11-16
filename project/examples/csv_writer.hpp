@@ -82,4 +82,16 @@ inline std::vector<int> parse_thread_list(std::string_view env_var_name,
   return result.empty() ? std::vector<int>{default_value} : result;
 }
 
+// GPU benchmark CSV helpers (flat rows: one per measurement)
+inline void write_gpu_benchmark_header(std::ostream& file) {
+  file << "size" << delim << "impl" << delim << "time_us" << delim << "gflops"
+       << "\n";
+}
+
+inline void write_gpu_benchmark_row(std::ostream& file, int size,
+                                    std::string_view impl, double time_us,
+                                    double gflops) {
+  file << size << delim << impl << delim << time_us << delim << gflops << "\n";
+}
+
 }  // namespace csv

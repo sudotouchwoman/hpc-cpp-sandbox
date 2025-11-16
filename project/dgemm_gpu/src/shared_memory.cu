@@ -1,6 +1,4 @@
-#include "dgemm_gpu.cuh"
-
-#ifdef HAVE_CUDA
+#include "dgemm_gpu.hpp"
 
 #include <cuda_runtime.h>
 #include <cassert>
@@ -31,8 +29,8 @@ __global__ void dgemm_tiled_kernel(int M, int N, int K, double alpha,
   const int local_i = tx;
   const int global_i = block_i + local_i;
 
-  __shared__ double As[TILE_M][TILE_K];
-  __shared__ double Bs[TILE_K][TILE_N];
+  __shared__ double As[TILE_M][TILE_K+1];
+  __shared__ double Bs[TILE_K][TILE_N+1];
 
   double acc[COLS_PER_THREAD];
 #pragma unroll
@@ -117,5 +115,3 @@ void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
 }
 
 }  // namespace mm::impl::gpu::unified
-
-#endif  // HAVE_CUDA

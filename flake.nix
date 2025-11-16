@@ -79,8 +79,6 @@
             # this is required since clangd needs absolute paths for these drivers and vscode can't
             # use command substitution in settings.json
             PROJECT_CC = "${common-pkgs.gcc14}/bin/g++";
-            CUDA_HOST_CXX = "${common-pkgs.gcc14}/bin/g++";
-            CUDAToolkit_ROOT = "${common-pkgs.cudaPackages_12.cudatoolkit}";
           };
         }
       );

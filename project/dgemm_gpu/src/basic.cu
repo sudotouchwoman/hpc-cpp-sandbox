@@ -1,6 +1,4 @@
-#include "dgemm_gpu.cuh"
-
-#ifdef HAVE_CUDA
+#include "dgemm_gpu.hpp"
 
 #include <cuda_runtime.h>
 #include <cassert>
@@ -52,5 +50,3 @@ void dgemm_impl_device(int M, int N, int K, double alpha, const double* dA,
 }
 
 }  // namespace mm::impl::gpu::basic
-
-#endif  // HAVE_CUDA

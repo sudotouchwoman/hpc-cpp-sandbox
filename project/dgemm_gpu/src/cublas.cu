@@ -1,6 +1,4 @@
-#include "dgemm_gpu.cuh"
-
-#ifdef HAVE_CUDA
+#include "dgemm_gpu.hpp"
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
@@ -31,5 +29,3 @@ void dgemm_impl_device(cublasHandle_t handle, int M, int N, int K, double alpha,
 }
 
 }  // namespace mm::impl::gpu::cublas
-
-#endif  // HAVE_CUDA

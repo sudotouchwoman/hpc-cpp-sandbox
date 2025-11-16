@@ -10,7 +10,14 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-#include "dgemm_gpu.cuh"
+
+#include "buffer_manager_impl.hpp"
+#include "csv_writer.hpp"
+#include "device_buffers.hpp"
+#include "handle.hpp"
+#include "impl_policies.hpp"
+#include "multi_stream_handle.hpp"
+#include "raii_adapter.hpp"
 
 // Helper function to generate random matrix
 std::vector<double> generate_random_matrix(int rows, int cols) {
@@ -52,29 +59,7 @@ bool verify_result(const std::vector<double>& A, const std::vector<double>& B,
   return true;
 }
 
-struct Implementation {
-  using func_t =
-      std::function<void(int, int, int, const double*, const double*, double*)>;
-
-  using lifecycle_func_t = std::function<void()>;
-
-  std::string name;
-  std::string description;
-  func_t f;
-
-  lifecycle_func_t setup = nullptr;
-  lifecycle_func_t teardown = nullptr;
-
-  mm::impl::gpu::Backend backend = mm::impl::gpu::Backend::SharedMemory;
-
-  Implementation(const std::string& name, const std::string& desc)
-      : name(name), description(desc) {}
-
-  Implementation(
-      const std::string& name, const std::string& desc, func_t f,
-      lifecycle_func_t setup = []() {}, lifecycle_func_t teardown = []() {})
-      : name(name), description(desc), f(f), setup(setup), teardown(teardown) {}
-};
+using mm::impl::gpu::AnyDgemm;
 
 struct BenchmarkResult {
   std::uint32_t dim;
@@ -95,98 +80,145 @@ double calculate_gflops(std::uint64_t flops, double time_us) {
 }
 
 // Benchmark function
-BenchmarkResult benchmark_implementation(const Implementation& impl,
+BenchmarkResult benchmark_implementation(const AnyDgemm& impl,
                                          const std::vector<double>& A,
                                          const std::vector<double>& B,
                                          std::vector<double>& C, int M, int N,
                                          int K, int iterations = 10) {
-  return mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
-    h.setup(impl.backend, M, N, K);
-    h.allocateDeviceBuffers();
-    // Upload once, zero C
-    h.uploadAAsync(A.data(), M);
-    h.uploadBAsync(B.data(), K);
-    std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
-                              0.0);
-    h.uploadCAsync(zeros.data(), M);
-    h.synchronize();
+  // Setup and upload
+  impl.setup(M, N, K);
+  impl.uploadA(A.data(), M);
+  impl.uploadB(B.data(), K);
+  std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
+                            0.0);
+  impl.uploadC(zeros.data(), M);
+  impl.sync();
 
-    // Warmup
-    h.execute(1.0, 0.0);
-    h.synchronize();
+  // Warmup
+  impl.execute(1.0, 0.0);
+  impl.sync();
 
-    // Time only kernel executes
-    cudaEvent_t start, stop;
-    CHECK_CUDA(cudaEventCreate(&start));
-    CHECK_CUDA(cudaEventCreate(&stop));
-    CHECK_CUDA(cudaEventRecord(start, h.stream()));
-    for (int i = 0; i < iterations; ++i) {
-      h.execute(1.0, 0.0);
-    }
-    CHECK_CUDA(cudaEventRecord(stop, h.stream()));
-    CHECK_CUDA(cudaEventSynchronize(stop));
-    float ms = 0.0f;
-    CHECK_CUDA(cudaEventElapsedTime(&ms, start, stop));
-    CHECK_CUDA(cudaEventDestroy(start));
-    CHECK_CUDA(cudaEventDestroy(stop));
+  // Time only kernel executes
+  cudaEvent_t start, stop;
+  CHECK_CUDA(cudaEventCreate(&start));
+  CHECK_CUDA(cudaEventCreate(&stop));
+  // Use default stream timing; multi-stream will still run concurrently
+  CHECK_CUDA(cudaEventRecord(start, 0));
+  for (int i = 0; i < iterations; ++i) {
+    impl.execute(1.0, 0.0);
+  }
+  impl.sync();
+  CHECK_CUDA(cudaEventRecord(stop, 0));
+  CHECK_CUDA(cudaEventSynchronize(stop));
+  float ms = 0.0f;
+  CHECK_CUDA(cudaEventElapsedTime(&ms, start, stop));
+  CHECK_CUDA(cudaEventDestroy(start));
+  CHECK_CUDA(cudaEventDestroy(stop));
 
-    h.teardown();
+  impl.teardown();
 
-    const auto flops = calculate_flops(M, N, K);
-    const double iter_duration_us =
-        (static_cast<double>(ms) * 1000.0) / iterations;
-    return BenchmarkResult{static_cast<std::uint32_t>(M), flops,
-                           iter_duration_us,
-                           calculate_gflops(flops, iter_duration_us)};
-  });
+  const auto flops = calculate_flops(M, N, K);
+  const double iter_duration_us =
+      (static_cast<double>(ms) * 1000.0) / iterations;
+  return BenchmarkResult{static_cast<std::uint32_t>(M), flops, iter_duration_us,
+                         calculate_gflops(flops, iter_duration_us)};
 }
 
-std::vector<Implementation> get_gpu_implementations() {
-  std::vector<Implementation> impls;
+std::vector<AnyDgemm> get_gpu_implementations() {
+  using namespace mm::impl::gpu;
+  std::vector<AnyDgemm> impls;
 
-#ifdef HAVE_CUDA
+  // Pinned + Basic
   {
-    Implementation basic(
-        "GPU-Basic", "Single-stream device-pointer kernel (basic)", nullptr);
-    basic.backend = mm::impl::gpu::Backend::Basic;
-    impls.emplace_back(basic);
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, BasicImpl>>>("Basic", "Basic kernel",
+                                                      TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
   }
+  // Unified + Basic
   {
-    Implementation shared_memory("GPU-SharedMemory",
-                                 "Single-stream tiled kernel (shared memory)",
-                                 nullptr);
-    shared_memory.backend = mm::impl::gpu::Backend::SharedMemory;
-    impls.emplace_back(shared_memory);
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<UnifiedBufferManager, BasicImpl>>>(
+        "Basic-UM", "Basic kernel with Unified Memory", TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
   }
+  // Pinned + SharedMemory
   {
-    Implementation multistream("GPU-MultiStream",
-                               "Multi-stream shared memory kernel (4 streams)",
-                               nullptr);
-    multistream.backend = mm::impl::gpu::Backend::MultiStream;
-    impls.emplace_back(multistream);
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, SharedMemoryImpl>>>(
+        "SharedMemory", "Single-stream tiled kernel (shared memory)",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
   }
+  // Pinned + RegisterTiled
   {
-    Implementation reg_tiled("GPU-RegisterTiled",
-                             "High-intensity tiled/register-tiled kernel",
-                             nullptr);
-    reg_tiled.backend = mm::impl::gpu::Backend::RegisterTiled;
-    impls.emplace_back(reg_tiled);
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, RegisterTiledImpl<false>>>>(
+        "RegisterTiled", "High-intensity tiled/register-tiled kernel",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
   }
+  // Pinned + RegisterTiled (A transposed)
   {
-    Implementation cublas("GPU-cuBLAS",
-                          "NVIDIA cuBLAS optimized implementation", nullptr);
-    cublas.backend = mm::impl::gpu::Backend::CuBLAS;
-    impls.emplace_back(cublas);
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, RegisterTiledImpl<>>>>(
+        "RegisterTiled-At-Banks",
+        "Register-tiled kernel with A transposed on upload", TransposeA::Yes);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
   }
-#else
-  // If CUDA is not available, return empty list
-#endif
+  // Pinned + RegisterTiled + Bank Conflict Optimization
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, RegisterTiledImpl<>>>>(
+        "RegisterTiled-Banks", "High-intensity tiled/register-tiled kernel",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
+  // Multi-stream (Pinned + SharedMemory)
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        MultiStreamDgemmHandle<PinnedBufferManager, SharedMemoryImpl, 4>>>(
+        "Streams", "Multi-stream shared memory kernel (4 streams)",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
+  // Multi-stream (Pinned + RegisterTiled, 4 streams)
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        MultiStreamDgemmHandle<PinnedBufferManager, RegisterTiledImpl<>, 4>>>(
+        "Streams-Tiled", "Multi-stream register-tiled kernel (4 streams)",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
+  // Multi-stream (Pinned + RegisterTiled, 4 streams, A transposed)
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        MultiStreamDgemmHandle<PinnedBufferManager, RegisterTiledImpl<>, 4>>>(
+        "Streams-Tiled-At",
+        "Multi-stream register-tiled (4 streams), A transposed on upload",
+        TransposeA::Yes);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
+  // Multi-stream (Pinned + RegisterTiled, 8 streams)
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        MultiStreamDgemmHandle<PinnedBufferManager, RegisterTiledImpl<>, 8>>>(
+        "Streams-8-Best", "Multi-stream register-tiled kernel (8 streams)",
+        TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
+  // cuBLAS
+  {
+    auto ad = std::make_shared<mm::impl::gpu::DgemmAdapter<
+        DgemmHandle<PinnedBufferManager, CuBLASImpl>>>(
+        "cuBLAS", "NVIDIA cuBLAS optimized implementation", TransposeA::No);
+    impls.emplace_back(mm::impl::gpu::to_any(ad));
+  }
 
   return impls;
 }
 
 BOOST_AUTO_TEST_CASE(correctness_test) {
-#ifdef HAVE_CUDA
   constexpr int M = 211, N = 103, K = 99;
 
   const auto A = generate_random_matrix(M, K);
@@ -198,37 +230,35 @@ BOOST_AUTO_TEST_CASE(correctness_test) {
   for (const auto& impl : implementations) {
     // apply algorithm and verify result
     std::fill(C.begin(), C.end(), 0.0);
-    mm::impl::gpu::with_handle(impl.backend, [&](auto& h) {
-      h.setup(impl.backend, M, N, K);
-      h.allocateDeviceBuffers();
-      h.uploadAAsync(A.data(), M);
-      h.uploadBAsync(B.data(), K);
-      std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
-                                0.0);
-      h.uploadCAsync(zeros.data(), M);
-      h.execute(1.0, 0.0);
-      h.synchronize();
-      h.downloadCAsync(C.data());
-      h.synchronize();
-      h.teardown();
-    });
+    impl.setup(M, N, K);
+    impl.uploadA(A.data(), M);
+    impl.uploadB(B.data(), K);
+    std::vector<double> zeros(static_cast<size_t>(M) * static_cast<size_t>(N),
+                              0.0);
+    // Initialize C on device
+    impl.uploadC(zeros.data(), M);
+    impl.execute(1.0, 0.0);
+    impl.sync();
+    impl.downloadC(C.data(), M);
+    impl.sync();
+    impl.teardown();
 
     BOOST_CHECK_MESSAGE(
         verify_result(A, B, C, M, N, K),
         "Correctness test failed for: " + impl.name + " implementation");
   }
-#else
-  BOOST_TEST_MESSAGE("CUDA not available - skipping GPU correctness test");
-#endif
 }
 
 BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
-#ifdef HAVE_CUDA
   constexpr int num_iterations = 20;
 
   const auto implementations = get_gpu_implementations();
-  const std::vector<int> sizes = {256, 382,  400,  512,  760,
-                                  800, 1024, 1500, 2048, 4096};
+  const std::vector<int> sizes = {256,  382,  400,  512,  760, 800,
+                                  1024, 1500, 2048, 4096, 5120};
+
+  // csv output
+  std::ofstream csv_file("gpu_benchmark.csv");
+  csv::write_gpu_benchmark_header(csv_file);
 
   // header
   std::cout << "\n=== GPU DGEMM Performance Benchmark ===\n";
@@ -262,6 +292,9 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
         std::cout << " |" << std::setw(12) << std::fixed << std::setprecision(3)
                   << result.time_us << " |" << std::setw(8) << std::fixed
                   << std::setprecision(2) << result.gflops;
+
+        csv::write_gpu_benchmark_row(csv_file, size, impl.name, result.time_us,
+                                     result.gflops);
       } else {
         std::cout << std::setw(12) << "N/A" << std::setw(12) << "N/A";
       }
@@ -273,7 +306,4 @@ BOOST_AUTO_TEST_CASE(performance_benchmark_all) {
   std::cout << "\nNote: Time values are in microseconds (lower is better)\n";
   std::cout << "GFlops values are in GFLOP/s (higher is better)\n";
   std::cout << "GPU theoretical peak FLOP/s depends on your GPU model\n";
-#else
-  BOOST_TEST_MESSAGE("CUDA not available - skipping GPU performance benchmark");
-#endif
 }

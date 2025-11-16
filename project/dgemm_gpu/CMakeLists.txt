@@ -7,7 +7,6 @@ if(CUDAToolkit_FOUND)
 
   # Set source files
   target_sources(dgemm_gpu PRIVATE
-      src/gpu_context.cu
       src/basic.cu
       src/shared_memory.cu
       src/cublas.cu
@@ -28,9 +27,6 @@ if(CUDAToolkit_FOUND)
 
   # Link against CUDA runtime and cuBLAS
   target_link_libraries(dgemm_gpu PUBLIC CUDA::cudart CUDA::cublas)
-
-  # Add compile definition to indicate CUDA is available
-  target_compile_definitions(dgemm_gpu PUBLIC HAVE_CUDA)
 else()
   message(STATUS "CUDA toolkit not found - dgemm_gpu library will not be built")
 endif()

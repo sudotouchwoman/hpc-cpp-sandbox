@@ -36,7 +36,7 @@ if(CUDAToolkit_FOUND)
     # Add GPU benchmark test
     add_test(NAME gpu_dgemm_benchmark COMMAND gpu_benchmark)
     set_tests_properties(gpu_dgemm_benchmark PROPERTIES
-        TIMEOUT 60  # 1 minute timeout
+        TIMEOUT 300  # 5 minute timeout
         LABELS "gpu"
     )
   endif()
