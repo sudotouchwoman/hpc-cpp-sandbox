@@ -57,6 +57,8 @@
           openblas
           mkl
 
+          openmpi
+
           linuxPackages.perf
         ];
 
