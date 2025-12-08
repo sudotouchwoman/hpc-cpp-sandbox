@@ -1,6 +1,8 @@
 #include <mpi.h>
 #include <cmath>
+#include <cstring>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -16,7 +18,7 @@ int main(int argc, char** argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   // Default Parameters
-  const int global_points = 50000;
+  const int global_points = 25000;
   const double L = 1.0;
   const double alpha = 1.0;  // Thermal diffusivity
   const double t_end = 1e-3;
@@ -28,14 +30,21 @@ int main(int argc, char** argv) {
   const int steps = static_cast<int>(t_end / dt);
 
   std::string kernel_type = "naive";
-  if (argc > 1) {
-    kernel_type = argv[1];
+  bool use_async = false;
+
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--async") {
+      use_async = true;
+    } else {
+      kernel_type = argv[i];
+    }
   }
 
   if (rank == 0) {
     std::cout << "MPI Heat Solver\n";
     std::cout << "Points: " << global_points << ", Steps: " << steps << "\n";
     std::cout << "Kernel: " << kernel_type << "\n";
+    std::cout << "Mode: " << (use_async ? "Async" : "Sync") << "\n";
     std::cout << "MPI Size: " << size << "\n";
   }
 
@@ -47,8 +56,15 @@ int main(int argc, char** argv) {
     kernel = mpi_solver::kernels::update_naive;
   }
 
-  mpi_solver::ParallelHeatSolver solver(global_points, L, alpha, dt, rank,
-                                        size);
+  std::unique_ptr<mpi_solver::ParallelHeatSolver> solver;
+
+  if (use_async) {
+    solver = std::make_unique<mpi_solver::AsyncParallelHeatSolver>(
+        global_points, L, alpha, dt, rank, size);
+  } else {
+    solver = std::make_unique<mpi_solver::ParallelHeatSolver>(
+        global_points, L, alpha, dt, rank, size);
+  }
 
   // Initialize Data (Rank 0 creates it)
   std::vector<double> initial_data;
@@ -59,13 +75,13 @@ int main(int argc, char** argv) {
     initial_data[global_points - 1] = 0.0;
   }
 
-  solver.initialize(initial_data);
+  solver->initialize(initial_data);
 
   // Timing
   MPI_Barrier(MPI_COMM_WORLD);  // Ensure all ranks start together
   double start_time = MPI_Wtime();
 
-  solver.run(steps, kernel);
+  solver->run(steps, kernel);
 
   // End of timing
   MPI_Barrier(MPI_COMM_WORLD);  // Ensure all ranks finish
@@ -78,7 +94,7 @@ int main(int argc, char** argv) {
   MPI_Reduce(&local_duration, &max_duration, 1, MPI_DOUBLE, MPI_MAX, 0,
              MPI_COMM_WORLD);
 
-  std::vector<double> final_result = solver.gather_results();
+  std::vector<double> final_result = solver->gather_results();
 
   // Verification (Rank 0)
   int exit_code = 0;
