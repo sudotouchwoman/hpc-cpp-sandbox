@@ -1,14 +1,11 @@
 #include <mpi.h>
 #include <cmath>
-#include <cstring>
 #include <iostream>
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "analytical.hpp"
-#include "kernels.hpp"
-#include "mpi_solver.hpp"
+#include "gpu_solver.hpp"
 
 int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
@@ -17,11 +14,27 @@ int main(int argc, char** argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  int num_devices = 0;
+  cudaGetDeviceCount(&num_devices);
+
+  // Use local rank if available (better for multi-node), fallback to global rank % num_devices
+  // For OpenMPI, OMPI_COMM_WORLD_LOCAL_RANK is standard.
+  const char* local_rank_str = std::getenv("OMPI_COMM_WORLD_LOCAL_RANK");
+  const int local_rank =
+      (local_rank_str) ? std::atoi(local_rank_str) : (rank % num_devices);
+
+  if (num_devices > 0) {
+    const int device_id = local_rank % num_devices;
+    CHECK_CUDA(cudaSetDevice(device_id));
+    if (rank == 0)
+      std::cout << "Binding ranks to GPUs based on local rank.\n";
+  }
+
   // Default Parameters
-  const int global_points = 10000;
+  const int global_points = 25000;
   const double L = 1.0;
   const double alpha = 1.0;  // Thermal diffusivity
-  const double t_end = 1e-2;
+  const double t_end = 1e-3;
   const double u0 = 1.0;  // Initial temperature
 
   // Derived dt for stability (r = 0.4)
@@ -29,43 +42,14 @@ int main(int argc, char** argv) {
   const double dt = 0.4 * dx * dx / alpha;
   const int steps = static_cast<int>(t_end / dt);
 
-  std::string kernel_type = "naive";
-  bool use_async = false;
-
-  for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--async") {
-      use_async = true;
-    } else {
-      kernel_type = argv[i];
-    }
-  }
-
   if (rank == 0) {
-    std::cout << "MPI Heat Solver\n";
+    std::cout << "Hybrid MPI+GPU Heat Solver\n";
     std::cout << "Points: " << global_points << ", Steps: " << steps << "\n";
-    std::cout << "dt: " << dt << ", dx: " << dx << "\n";
-    std::cout << "Kernel: " << kernel_type << "\n";
-    std::cout << "Mode: " << (use_async ? "Async" : "Sync") << "\n";
     std::cout << "MPI Size: " << size << "\n";
   }
 
-  // Select Kernel
-  mpi_solver::UpdateKernel kernel;
-  if (kernel_type == "mkl") {
-    kernel = mpi_solver::kernels::update_mkl;
-  } else {
-    kernel = mpi_solver::kernels::update_naive;
-  }
-
-  std::unique_ptr<mpi_solver::ParallelHeatSolver> solver;
-
-  if (use_async) {
-    solver = std::make_unique<mpi_solver::AsyncParallelHeatSolver>(
-        global_points, L, alpha, dt, rank, size);
-  } else {
-    solver = std::make_unique<mpi_solver::ParallelHeatSolver>(
-        global_points, L, alpha, dt, rank, size);
-  }
+  auto solver = std::make_unique<mpi_solver::HybridParallelHeatSolver>(
+      global_points, L, alpha, dt, rank, size);
 
   // Initialize Data (Rank 0 creates it)
   std::vector<double> initial_data;
@@ -82,7 +66,7 @@ int main(int argc, char** argv) {
   MPI_Barrier(MPI_COMM_WORLD);  // Ensure all ranks start together
   double start_time = MPI_Wtime();
 
-  solver->run(steps, kernel);
+  solver->run(steps);
 
   // End of timing
   MPI_Barrier(MPI_COMM_WORLD);  // Ensure all ranks finish

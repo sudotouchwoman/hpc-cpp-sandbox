@@ -16,13 +16,14 @@ target_include_directories(mpi_solver_lib PUBLIC
 )
 
 # Link MKL if found, otherwise we might rely on generic BLAS or just fallback
-if(MKL_FOUND)
+if(TARGET MKL::MKL)
+    message(STATUS "Linking mpi_solver_lib with MKL")
     target_link_libraries(mpi_solver_lib PUBLIC MKL::MKL)
     target_compile_definitions(mpi_solver_lib PUBLIC HAVE_MKL)
 else()
+    message(WARNING "MKL not found for mpi_solver_lib, trying BLAS fallback")
     # Fallback to generic BLAS if needed, or just warn
-    find_package(BLAS)
-    if(BLAS_FOUND)
+    if(TARGET BLAS::BLAS)
         target_link_libraries(mpi_solver_lib PUBLIC ${BLAS_LIBRARIES})
         target_compile_definitions(mpi_solver_lib PUBLIC HAVE_BLAS)
     endif()
@@ -41,4 +42,25 @@ add_test(NAME MPI_Solver_Unit_Tests COMMAND unit_tests)
 set_tests_properties(MPI_Solver_Unit_Tests PROPERTIES
     TIMEOUT 300  # 5 minute timeout
     LABELS "mpi"
+)
+
+# GPU Solver Components
+add_library(mpi_solver_gpu_lib STATIC
+    src/kernels.cu
+    src/gpu_solver.cu
+)
+
+target_include_directories(mpi_solver_gpu_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# We need CUDA::cudart for runtime API and MPI for communication
+target_link_libraries(mpi_solver_gpu_lib PUBLIC CUDA::cudart MPI::MPI_CXX)
+
+# GPU Solver Executable
+add_executable(mpi_heat_solver_gpu src/main_gpu.cpp)
+target_link_libraries(mpi_heat_solver_gpu PRIVATE
+    mpi_solver_gpu_lib
+    mpi_solver_lib  # Reusing analytical.cpp from here
+    MPI::MPI_CXX
 )

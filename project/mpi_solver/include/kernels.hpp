@@ -14,7 +14,7 @@ namespace kernels {
  * @param r Courant number: (alpha * dt) / (dx^2)
  */
 void update_naive(const std::vector<double>& u_old, std::vector<double>& u_new,
-                  const double r, size_t start = 1, size_t end = 0);
+                  const double r, std::size_t start = 1, std::size_t end = 0);
 
 /**
  * @brief Explicit time-stepping update using MKL/BLAS if available.
@@ -26,7 +26,7 @@ void update_naive(const std::vector<double>& u_old, std::vector<double>& u_new,
  * @param end End index for update (exclusive, default 0 -> size-1)
  */
 void update_mkl(const std::vector<double>& u_old, std::vector<double>& u_new,
-                const double r, size_t start = 1, size_t end = 0);
+                const double r, std::size_t start = 1, std::size_t end = 0);
 
 }  // namespace kernels
 }  // namespace mpi_solver
